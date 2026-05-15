@@ -1,4 +1,4 @@
-﻿import { describe, expect, test, vi } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { handleAxiosError } from './AxiosService';
 import { error500$ } from './event.service';
 
