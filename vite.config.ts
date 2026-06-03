@@ -2,15 +2,21 @@
 
 import legacy from '@vitejs/plugin-legacy'
 import react from '@vitejs/plugin-react'
+import { sentryVitePlugin } from '@sentry/vite-plugin'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa';
 
 //const fs = require('node:fs');
 
+const sentryRelease =
+  process.env.VITE_SENTRY_RELEASE ||
+  (process.env.COMMIT_REF ? `sh-student-app@${process.env.COMMIT_REF}` : undefined);
+
 // https://vitejs.dev/config/
 export default defineConfig({
 
   build: {
+    sourcemap: 'hidden',
     rollupOptions: {
       output: {
         manualChunks: {
@@ -46,6 +52,9 @@ export default defineConfig({
       '@': "/src",
     },
   },
+  define: {
+    'import.meta.env.VITE_SENTRY_RELEASE': JSON.stringify(sentryRelease || ''),
+  },
   plugins: [
     react(),
     VitePWA({ 
@@ -53,6 +62,22 @@ export default defineConfig({
       workbox: { maximumFileSizeToCacheInBytes: 5000000 } 
     }),
     legacy(),
+    ...(process.env.SENTRY_AUTH_TOKEN && sentryRelease
+      ? [
+          sentryVitePlugin({
+            org: process.env.SENTRY_ORG,
+            project: process.env.SENTRY_PROJECT,
+            authToken: process.env.SENTRY_AUTH_TOKEN,
+            release: {
+              name: sentryRelease,
+              setCommits: { auto: true },
+            },
+            sourcemaps: {
+              filesToDeleteAfterUpload: ['./dist/**/*.map'],
+            },
+          }),
+        ]
+      : []),
   ],
   test: {
     globals: true,
