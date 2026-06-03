@@ -4,8 +4,9 @@ import * as SentryReact from "@sentry/react";
 Sentry.init(
   {
     dsn: import.meta.env.VITE_SENTRY_DSN,
-    // Set your release version, such as "getsentry@1.0.0"
-    release: "sh-student-app@latest",
+    ...(import.meta.env.VITE_SENTRY_RELEASE
+      ? { release: import.meta.env.VITE_SENTRY_RELEASE }
+      : {}),
     // Set your dist version, such as "1"
     dist: "1.0.0",
     environment: import.meta.env.VITE_ENV_NAME,
