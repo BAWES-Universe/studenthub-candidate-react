@@ -12,11 +12,13 @@ const sentryRelease =
   process.env.VITE_SENTRY_RELEASE ||
   (process.env.COMMIT_REF ? `sh-student-app@${process.env.COMMIT_REF}` : undefined);
 
+const sentryUploadEnabled = Boolean(process.env.SENTRY_AUTH_TOKEN && sentryRelease);
+
 // https://vitejs.dev/config/
 export default defineConfig({
 
   build: {
-    sourcemap: 'hidden',
+    sourcemap: sentryUploadEnabled ? 'hidden' : false,
     rollupOptions: {
       output: {
         manualChunks: {
@@ -62,7 +64,7 @@ export default defineConfig({
       workbox: { maximumFileSizeToCacheInBytes: 5000000 } 
     }),
     legacy(),
-    ...(process.env.SENTRY_AUTH_TOKEN && sentryRelease
+    ...(sentryUploadEnabled
       ? [
           sentryVitePlugin({
             org: process.env.SENTRY_ORG,
