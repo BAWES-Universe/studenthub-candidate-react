@@ -182,7 +182,15 @@ export default function CivilIdPage() {
 
     setRemovingFrontId(true);
 
-    removeCivilPhotoFront().then(() => {
+    removeCivilPhotoFront().then((res: any) => {
+      if (res?.operation && res.operation !== 'success') {
+        alertDialog({
+          title: t("Error"),
+          description: errorMessage(res.message),
+        });
+        return;
+      }
+
       form.setValue('candidate_civil_photo_front', '');
       form.trigger('candidate_civil_photo_front');
       form.setValue('candidate_civil_photo_front_url', '');
@@ -193,16 +201,29 @@ export default function CivilIdPage() {
         candidate_civil_photo_front: null
       } }));
 
+    }).catch(() => {
+      alertDialog({
+        title: t("Error"),
+        description: errorMessage(t("Civil ID photo could not be removed. Please try again.")),
+      });
     }).finally(() => {
       setRemovingFrontId(false);
     });
   }
 
   function resetBackId() {
-    
+
     setRemovingBackId(true);
 
-    removeCivilPhotoBack().then(() => {
+    removeCivilPhotoBack().then((res: any) => {
+      if (res?.operation && res.operation !== 'success') {
+        alertDialog({
+          title: t("Error"),
+          description: errorMessage(res.message),
+        });
+        return;
+      }
+
       form.setValue('candidate_civil_photo_back', '');
       form.trigger('candidate_civil_photo_back');
       form.setValue('candidate_civil_photo_back_url', '');
@@ -213,6 +234,11 @@ export default function CivilIdPage() {
         candidate_civil_photo_back: null
       } }));
 
+    }).catch(() => {
+      alertDialog({
+        title: t("Error"),
+        description: errorMessage(t("Civil ID photo could not be removed. Please try again.")),
+      });
     }).finally(() => {
       setRemovingBackId(false);
     });
@@ -277,6 +303,13 @@ export default function CivilIdPage() {
          text-[40px] font-bold leading-[56px] mt-[102px] mb-[38px]">
             {t('Civil ID Information')}
         </h5>
+        { query.get('fromProfile') && (
+          <div className="max-w-[650px] m-auto mb-[24px]">
+            <Button variant="ghost" type="button" onClick={() => router.push('/profile')}>
+              {t('Back to Profile')}
+            </Button>
+          </div>
+        ) }
   { /**block-inline max-w-[313px] xs:max-w-full xs:w-full  */}
 
        <div suppressHydrationWarning={true} className="flex flex-col sm:flex-row max-w-[640px]  min-h-[196px] m-auto mb-[24px]">
