@@ -48,10 +48,15 @@ export async function handleAxiosError(err: any) {
     console.log("axios error:", err);
 
     const response = err.response;
+    const suppressGlobalErrorHandler = err.config?.suppressGlobalErrorHandler || response?.config?.suppressGlobalErrorHandler;
     //const errMsg = response.status ? `${response.status} - ${response.statusText}` : 'Server error';
 
     if (!response) {
         internetOffline$.next({});
+        return Promise.reject(err);
+    }
+
+    if (suppressGlobalErrorHandler) {
         return Promise.reject(err);
     }
 

@@ -27,6 +27,7 @@ import { useTranslation } from "react-i18next";
 import Loading from "./loading";
 import AuthLayout from "../layout";
 import { FormDateTimeInput } from "@/components/ui/form-datetime";
+import { toast } from "@/hooks/use-toast";
 
  
 export default function CivilIdPage() {
@@ -35,6 +36,8 @@ export default function CivilIdPage() {
   const [removingBackId, setRemovingBackId] = useState(false);
   const [uploadingFrontId, setUploadingFrontId] = useState(false);
   const [uploadingBackId, setUploadingBackId] = useState(false);
+  const [frontIdPreviewFailed, setFrontIdPreviewFailed] = useState(false);
+  const [backIdPreviewFailed, setBackIdPreviewFailed] = useState(false);
 
   const { user } = useAppSelector(state => state.user);
 
@@ -178,6 +181,10 @@ export default function CivilIdPage() {
     });
   } 
 
+  function removeCivilPhotoErrorDescription(error: any) {
+    return errorMessage(error?.response?.data?.message || error?.message || t("Unable to remove ID photo. Please try again."));
+  }
+
   function resetFrontId() {
 
     setRemovingFrontId(true);
@@ -187,12 +194,19 @@ export default function CivilIdPage() {
       form.trigger('candidate_civil_photo_front');
       form.setValue('candidate_civil_photo_front_url', '');
       form.trigger('candidate_civil_photo_front_url');
+      setFrontIdPreviewFailed(false);
 
       dispatch(setUser({ user: {
         ...user,
         candidate_civil_photo_front: null
       } }));
 
+    }).catch((error) => {
+      toast({
+        title: t("Error"),
+        description: removeCivilPhotoErrorDescription(error),
+        variant: "destructive",
+      });
     }).finally(() => {
       setRemovingFrontId(false);
     });
@@ -207,15 +221,46 @@ export default function CivilIdPage() {
       form.trigger('candidate_civil_photo_back');
       form.setValue('candidate_civil_photo_back_url', '');
       form.trigger('candidate_civil_photo_back_url');
+      setBackIdPreviewFailed(false);
 
       dispatch(setUser({ user: {
         ...user,
         candidate_civil_photo_back: null
       } }));
 
+    }).catch((error) => {
+      toast({
+        title: t("Error"),
+        description: removeCivilPhotoErrorDescription(error),
+        variant: "destructive",
+      });
     }).finally(() => {
       setRemovingBackId(false);
     });
+  }
+
+  function handleFrontIdPreviewError() {
+    if (!frontIdPreviewFailed) {
+      toast({
+        title: t("Error"),
+        description: t("Unable to load ID front preview. You can upload a new image or remove the current one."),
+        variant: "destructive",
+      });
+    }
+
+    setFrontIdPreviewFailed(true);
+  }
+
+  function handleBackIdPreviewError() {
+    if (!backIdPreviewFailed) {
+      toast({
+        title: t("Error"),
+        description: t("Unable to load ID back preview. You can upload a new image or remove the current one."),
+        variant: "destructive",
+      });
+    }
+
+    setBackIdPreviewFailed(true);
   }
 
   function onCivilIdUploaded(res: any) {
@@ -229,6 +274,7 @@ export default function CivilIdPage() {
         form.setValue('candidate_civil_photo_back_url', 
           import.meta.env.VITE_PERMANENT_BUCKET_URL  + 'photos/' + res.candidate_civil_photo_back);
         form.setValue('candidate_civil_photo_back', res.candidate_civil_photo_back);
+        setBackIdPreviewFailed(false);
         form.trigger('candidate_civil_photo_back_url');
         form.trigger('candidate_civil_photo_back');
       }
@@ -237,6 +283,7 @@ export default function CivilIdPage() {
         form.setValue('candidate_civil_photo_front_url', 
           import.meta.env.VITE_PERMANENT_BUCKET_URL  + 'photos/' + res.candidate_civil_photo_front);
         form.setValue('candidate_civil_photo_front', res.candidate_civil_photo_front);
+        setFrontIdPreviewFailed(false);
         form.trigger('candidate_civil_photo_front_url');
         form.trigger('candidate_civil_photo_front');
       }
@@ -277,6 +324,12 @@ export default function CivilIdPage() {
          text-[40px] font-bold leading-[56px] mt-[102px] mb-[38px]">
             {t('Civil ID Information')}
         </h5>
+
+        { query.get('fromProfile') && <div className="max-w-[650px] m-auto mb-[24px]">
+          <Button variant={"ghost"} type="button" onClick={() => router.push('/profile')} className="text-[color:var(--Blue-Tint-Main,#4C70F2)]">
+            {t("Back to Profile")}
+          </Button>
+        </div> }
   { /**block-inline max-w-[313px] xs:max-w-full xs:w-full  */}
 
        <div suppressHydrationWarning={true} className="flex flex-col sm:flex-row max-w-[640px]  min-h-[196px] m-auto mb-[24px]">
@@ -351,7 +404,10 @@ export default function CivilIdPage() {
             { form.getValues().candidate_civil_photo_front && <div className="xs:max-w-full w-full sm:max-w-[313px]  flex-none 
                   rounded-2xl mb-[24px] sm:mb-0 sm:me-[24px]">
 
-                <img onError={() => resetFrontId()} src={form.getValues().candidate_civil_photo_front_url || ""} className="w-full"></img>   
+                { !frontIdPreviewFailed && <img onError={handleFrontIdPreviewError} src={form.getValues().candidate_civil_photo_front_url || ""} className="w-full"></img> }
+                { frontIdPreviewFailed && <div className="w-full min-h-[196px] rounded-2xl flex items-center justify-center text-center text-sm text-[#4B4B61] [background:var(--Neutral-10,#FAFAFA)] border border-[color:var(--Neutral-30,#EEEEF0)] p-[24px]">
+                  {t("Unable to load ID front preview.")}
+                </div> }
 
                 <Button variant={"ghost"} disabled={removingFrontId} onClick={resetFrontId} className="text-[color:var(--Neutral-70,#7D7D8D)] text-sm font-medium leading-5 text-center m-auto mt-[12px]">
                     <img src="/assets/icons/trash.svg" className="w-[16px]"></img>  
@@ -427,7 +483,10 @@ export default function CivilIdPage() {
             { form.getValues().candidate_civil_photo_back && <div className="xs:max-w-full sm:max-w-[313px] w-full flex-none 
                   rounded-2xl mb-[24px] sm:mb-0">
 
-                <img onError={() => resetBackId()} src={form.getValues().candidate_civil_photo_back_url || ""} className="w-full"></img>   
+                { !backIdPreviewFailed && <img onError={handleBackIdPreviewError} src={form.getValues().candidate_civil_photo_back_url || ""} className="w-full"></img> }
+                { backIdPreviewFailed && <div className="w-full min-h-[196px] rounded-2xl flex items-center justify-center text-center text-sm text-[#4B4B61] [background:var(--Neutral-10,#FAFAFA)] border border-[color:var(--Neutral-30,#EEEEF0)] p-[24px]">
+                  {t("Unable to load ID back preview.")}
+                </div> }
 
                 <Button variant={ "ghost"} disabled={removingBackId} onClick={resetBackId} className="text-[color:var(--Neutral-70,#7D7D8D)] text-sm font-medium leading-5 text-center m-auto mt-[12px]">
                     <img src="/assets/icons/trash.svg" className="w-[16px]"></img>    
