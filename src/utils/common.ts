@@ -3,7 +3,7 @@ import { RootState, store, useAppSelector } from "@/store/store";
 
 import { enUS, ar } from "date-fns/locale";
 import i18n from "@/18n";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 
 // A custom hook that builds on useLocation to parse
 // the query string for you.
@@ -16,7 +16,9 @@ export function useQuery() {
 }
 
 export function dateTimeFormat(value: string, dateFormat: string): string {
-  return format(value, dateFormat, { locale: i18n.language == 'en' ? enUS : ar })
+  const converted = toDate(value);
+  if (!converted || !isValid(converted)) return '';
+  return format(converted as Date, dateFormat, { locale: i18n.language == 'en' ? enUS : ar })
 }
 
 export function formatNumber(value: number) {
