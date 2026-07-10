@@ -152,19 +152,21 @@ export function FormDateTimeInput({
           </PopoverTrigger>
           <PopoverContent>
             
-            <IonDatetime name={name} 
+            <IonDatetime name={name}
                   presentation="date"
-                  value={ 
-                       form.getValues(name) ? form.getValues(name).toISOString() : new Date().toISOString()
-                     }
-                  max={maxDate ? maxDate.toISOString() : undefined}
+                  value={
+                    field.value instanceof Date
+                      ? field.value.toISOString().split('T')[0]
+                      : field.value
+                        ? new Date(field.value).toISOString().split('T')[0]
+                        : new Date().toISOString().split('T')[0]
+                  }
+                  max={maxDate ? maxDate.toISOString().split('T')[0] : undefined}
                   onIonChange={(e) => {
-                    const date = new Date(e.detail.value as string || "");
-                    
-                    if (date) {
-                      form.setValue(name, date);
-                      form.trigger(name);
-
+                    const raw = e.detail.value as string;
+                    if (raw) {
+                      const date = new Date(raw);
+                      field.onChange(date);
                       if (onChange)
                         onChange(e);
                     }
