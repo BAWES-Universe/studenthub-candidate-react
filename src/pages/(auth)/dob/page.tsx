@@ -9,6 +9,7 @@ import { z } from "zod"
 import {
   Form,
 } from "@/components/ui/form";
+import { Controller } from "react-hook-form";
 import OnboardFooter from "@/components/on-board/layout/footer";
 import SubmitButton from "@/components/ui/submit-button";
 import { Suspense, useEffect, useState } from "react";
@@ -132,17 +133,26 @@ export default function DobPage() {
                 </p> 
             }
 
-            <IonDatetime name='candidate_birth_date'
-                presentation="date"
-                value={form.getValues('candidate_birth_date')?.toISOString()}
-                onIonChange={(e) => {
-                  const date = new Date(e.detail.value as string || "");
-                  if (date)
-                    form.setValue('candidate_birth_date', date);
-                    form.trigger('candidate_birth_date');
-                }}
-                className="m-auto block"
-            ></IonDatetime>
+            <Controller
+                control={form.control}
+                name="candidate_birth_date"
+                render={({ field }) => (
+                  <IonDatetime
+                    name="candidate_birth_date"
+                    presentation="date"
+                    value={field.value instanceof Date
+                      ? field.value.toISOString().split('T')[0]
+                      : undefined}
+                    onIonChange={(e) => {
+                      const raw = e.detail.value as string;
+                      if (raw) {
+                        field.onChange(new Date(raw));
+                      }
+                    }}
+                    className="m-auto block"
+                  />
+                )}
+              />
             
 
             <SubmitButton disabled={!form.formState.isValid || loading } loading={loading}></SubmitButton>
