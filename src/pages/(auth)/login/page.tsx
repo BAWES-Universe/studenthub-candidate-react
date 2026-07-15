@@ -10,7 +10,7 @@ import {
 import { FormInput } from "@/components/ui/form-input";
 import OnboardFooter from "@/components/on-board/layout/footer";
 import SubmitButton from "@/components/ui/submit-button";
-import { setCredentials, setUnVerifiedToken } from "@/store/slices/authSlice";
+import { loginWithCredentials, setUnVerifiedToken } from "@/store/slices/authSlice";
 import { useAppDispatch } from "@/store/store";
 import { basicAuth } from "@/providers/auth.service";
 import { Suspense, useEffect, useState } from "react";
@@ -111,9 +111,7 @@ export default function LoginPage() {
       } else {
         
         // After successful login
-        dispatch(setCredentials({
-          token: res.token
-        }));
+        dispatch(loginWithCredentials(res.token));
 
         dispatch(setIsProfileCompleted({ 
           isProfileCompleted: res.isProfileCompleted

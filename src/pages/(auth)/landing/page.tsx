@@ -5,7 +5,7 @@ import AuthLayout from "../layout";
 import { useEffect, useRef, useState } from "react";
 import { loginByKey } from "@/providers/auth.service";
 import { setIsProfileCompleted } from "@/store/slices/userSlice";
-import { setCredentials } from "@/store/slices/authSlice";
+import { loginWithCredentials } from "@/store/slices/authSlice";
 import { useAppDispatch } from "@/store/store";
 import { useIonRouter } from "@ionic/react";
 import { useQuery } from "@/utils/common";
@@ -42,9 +42,7 @@ export default function LandingPage() {
         //setAuthKey(null);
 
         // After successful login
-        dispatch(setCredentials({
-          token: res.token
-        }));
+        dispatch(loginWithCredentials(res.token));
   
         dispatch(setIsProfileCompleted({ 
           isProfileCompleted: res.isProfileCompleted

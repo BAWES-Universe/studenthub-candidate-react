@@ -1,5 +1,6 @@
 import { userLogin$ } from '@/providers/event.service';
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import type { AppDispatch } from '@/store/store';
 //import { cookies } from 'next/headers';
 //import Cookies from 'js-cookie';
 
@@ -29,8 +30,6 @@ const authSlice = createSlice({
       });*/
 
       //Cookies.set('isAuthenticated', "1");
-      
-      userLogin$.next({});
     },
     logout: (state) => {
       state.token = null;
@@ -48,4 +47,15 @@ const authSlice = createSlice({
 });
 
 export const { setCredentials, logout, setUnVerifiedToken } = authSlice.actions;
+
+/**
+ * Thunk that sets credentials and then emits the userLogin$ event after the
+ * reducer has fully returned, avoiding Redux error #9 ("Reducers may not
+ * dispatch actions").
+ */
+export const loginWithCredentials = (token: string) => (dispatch: AppDispatch) => {
+  dispatch(setCredentials({ token }));
+  userLogin$.next({});
+};
+
 export default authSlice.reducer;

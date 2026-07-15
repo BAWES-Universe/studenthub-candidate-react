@@ -20,7 +20,7 @@ import { useParams } from "react-router-dom";
 import { resendVerificationEmail, verifyEmail } from "@/providers/auth.service";
 import { errorMessage, useQuery } from "@/utils/common";
 import { useAppDispatch } from "@/store/store";
-import { setCredentials, setUnVerifiedToken } from "@/store/slices/authSlice";
+import { loginWithCredentials, setUnVerifiedToken } from "@/store/slices/authSlice";
 import { setIsProfileCompleted, setUser } from "@/store/slices/userSlice";
 import { page, track } from "@/providers/analytics.service";
 import { alertDialog } from "@/hooks/use-alert-dialog";
@@ -141,9 +141,7 @@ export default function VerifyEmailPage() {
         }));
         
         // After successful login
-        dispatch(setCredentials({
-          token: res.token
-        }));
+        dispatch(loginWithCredentials(res.token));
 
         dispatch(setIsProfileCompleted({ 
           isProfileCompleted: res.isProfileCompleted
