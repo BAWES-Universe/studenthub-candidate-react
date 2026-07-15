@@ -7,7 +7,7 @@ import Spinner from "../common/spinner";
 import { useEffect, useState } from "react";
 import { GoogleAuth } from "@codetrix-studio/capacitor-google-auth";
 import { useGoogleIdTokenForAuth } from "@/providers/auth.service";
-import { setCredentials } from "@/store/slices/authSlice";
+import { loginWithCredentials } from "@/store/slices/authSlice";
 import { setIsProfileCompleted } from "@/store/slices/userSlice";
 import { useTranslation } from "react-i18next";
 import { alertDialog } from "@/hooks/use-alert-dialog";
@@ -44,9 +44,7 @@ export function Hero() {
             isProfileCompleted: res.isProfileCompleted
           }));
     
-          dispatch(setCredentials({
-            token: res.token
-          }));
+          dispatch(loginWithCredentials(res.token));
 
           //todo: set language based on saved preference?
           //language_pref

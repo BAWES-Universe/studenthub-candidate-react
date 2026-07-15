@@ -18,7 +18,7 @@ import { useIonRouter } from "@ionic/react";
 import { useAppDispatch } from "@/store/store";
 import { setIsProfileCompleted } from "@/store/slices/userSlice";
 import { updatePassword } from "@/providers/auth.service";
-import { setCredentials } from "@/store/slices/authSlice";
+import { loginWithCredentials } from "@/store/slices/authSlice";
 import { page, track } from "@/providers/analytics.service";
 import { alertDialog } from "@/hooks/use-alert-dialog";
 import { useTranslation } from "react-i18next";
@@ -86,9 +86,7 @@ const formSchema = z.object({
                   });
                   //'Password recovery email sent, please check your email.'
                     
-                    dispatch(setCredentials({
-                        token: res.accessToken.token
-                      }));
+                    dispatch(loginWithCredentials(res.accessToken.token));
                 
                       dispatch(setIsProfileCompleted({ 
                         isProfileCompleted: res.accessToken.isProfileCompleted
