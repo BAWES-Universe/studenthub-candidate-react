@@ -30,7 +30,7 @@ const authSlice = createSlice({
 
       //Cookies.set('isAuthenticated', "1");
       
-      userLogin$.next({});
+      setTimeout(() => userLogin$.next({}), 0);
     },
     logout: (state) => {
       state.token = null;
