@@ -1,10 +1,25 @@
-import { configureStore } from '@reduxjs/toolkit';
+import { configureStore, createListenerMiddleware } from '@reduxjs/toolkit';
 import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux';
 
 // Import your reducers
 import authReducer from './slices/authSlice';
 import userReducer from './slices/userSlice';
 import appReducer from './slices/appSlice';
+import { setCredentials } from './slices/authSlice';
+import { userLogin$ } from '@/providers/event.service';
+
+// Listener middleware to handle post-login side effects outside the reducer
+const listenerMiddleware = createListenerMiddleware();
+listenerMiddleware.startListening({
+  actionCreator: setCredentials,
+  effect: () => {
+    // Emit asynchronously so the reducer has fully completed before any
+    // subscriber can trigger further dispatches (avoids Redux Error #9).
+    setTimeout(() => {
+      userLogin$.next({});
+    }, 0);
+  },
+});
 //import { Storage } from '@ionic/storage';
 
 //const storage = new Storage();
@@ -35,6 +50,8 @@ export const store = configureStore<StoreState>({
     user: userReducer,
     app: appReducer,
   },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware().prepend(listenerMiddleware.middleware),
 });
 
 // Save to local storage

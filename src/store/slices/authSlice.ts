@@ -1,4 +1,3 @@
-import { userLogin$ } from '@/providers/event.service';
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 //import { cookies } from 'next/headers';
 //import Cookies from 'js-cookie';
@@ -30,7 +29,6 @@ const authSlice = createSlice({
 
       //Cookies.set('isAuthenticated', "1");
       
-      userLogin$.next({});
     },
     logout: (state) => {
       state.token = null;
