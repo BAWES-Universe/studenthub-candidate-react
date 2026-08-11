@@ -208,11 +208,11 @@ const AssignmentPage = () => {
                             selected={date}
                             onSelect={(e: any) => {
                                 setDate(e);
-                                form.setValue('start_date', e.from);
+                                form.setValue('start_date', e?.from);
                                 form.trigger('start_date');
-                                form.setValue('end_date', e.to);
+                                form.setValue('end_date', e?.to);
                                 form.trigger('end_date');
-                                if (form.formState.isValid)
+                                if (e && form.formState.isValid)
                                     loadPage(1);
                             }}
                             numberOfMonths={2}
