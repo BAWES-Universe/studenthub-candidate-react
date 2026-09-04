@@ -331,9 +331,116 @@ export async function useAppleIdTokenForAuth(params: any) {
   const state = store.getState(); // Get the state directly from the store
 
   const { utm_uuid } = state.app;  
- 
+
   params.utm_uuid = utm_uuid;
 
   const respone = await axios.post('/auth/login-by-apple', params);
+  return respone.data;
+}
+
+/**
+ * BAWES Authentik issuer (defaults to the production auth.bawes.net instance).
+ */
+const AUTHENTIK_ISSUER_URL = import.meta.env.VITE_AUTHENTIK_ISSUER_URL || 'https://auth.bawes.net';
+
+/**
+ * Random opaque state value protecting the OIDC redirect from CSRF.
+ */
+function generateUniverseLoginState(): string {
+
+  const bytes = new Uint8Array(16);
+
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = Math.floor(Math.random() * 256);
+    }
+  }
+
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Start the "Continue with Universe" login flow (Authentik OIDC,
+ * authorization-code). Redirects the full browser window to the Authentik
+ * authorize endpoint.
+ *
+ * The SPA never receives or stores an id_token/access_token — Authentik
+ * redirects back to VITE_AUTHENTIK_REDIRECT_URI with a one-time `code`,
+ * which the SPA forwards to the backend (POST /auth/login-by-universe)
+ * for the token exchange (see /auth/callback route).
+ */
+export function startUniverseLogin() {
+
+  const clientId = import.meta.env.VITE_AUTHENTIK_CLIENT_ID;
+  const redirectUri = import.meta.env.VITE_AUTHENTIK_REDIRECT_URI;
+
+  if (!clientId || !redirectUri) {
+    console.error(
+      'startUniverseLogin: missing Authentik configuration. ' +
+      'Set VITE_AUTHENTIK_CLIENT_ID and VITE_AUTHENTIK_REDIRECT_URI.'
+    );
+    return;
+  }
+
+  const state = generateUniverseLoginState();
+
+  // Remember the state so the /auth/callback route can verify the redirect
+  // came back to the same browser session that started the flow (CSRF).
+  try {
+    sessionStorage.setItem('sh_universe_oauth_state', state);
+  } catch (e) {
+    console.error('startUniverseLogin: could not persist OAuth state', e);
+  }
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: 'openid email profile',
+    state: state,
+  });
+
+  window.location.assign(`${AUTHENTIK_ISSUER_URL}/application/o/authorize/?${params.toString()}`);
+}
+
+/**
+ * Read (and clear) the OAuth state stored by startUniverseLogin.
+ * Returns null when no state was stored (e.g. the callback page was
+ * reloaded after the Authentik redirect).
+ */
+export function consumeUniverseLoginState(): string | null {
+  try {
+    const stored = sessionStorage.getItem('sh_universe_oauth_state');
+    sessionStorage.removeItem('sh_universe_oauth_state');
+    return stored;
+  } catch (e) {
+    console.error('consumeUniverseLoginState: could not read OAuth state', e);
+    return null;
+  }
+}
+
+/**
+ * Exchange an Authentik authorization code (received on the /auth/callback
+ * route) for a StudentHub bearer token. The code exchange happens on the
+ * backend; the SPA only forwards the code, state and redirect_uri.
+ * @param code authorization code from the Authentik redirect
+ * @param state the state value that was sent with the authorize request
+ * @param redirectUri the redirect URI used for the authorize request
+ */
+export async function useUniverseCodeForAuth(code: string, state: string, redirectUri: string) {
+
+  const storeState = store.getState(); // Get the state directly from the store
+
+  const { utm_uuid } = storeState.app;
+
+  const respone = await axios.post('/auth/login-by-universe', {
+    code: code,
+    state: state,
+    redirect_uri: redirectUri,
+    utm_uuid: utm_uuid
+  });
+
   return respone.data;
 }

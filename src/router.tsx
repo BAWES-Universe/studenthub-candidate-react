@@ -17,6 +17,7 @@ import LoadingExperiences from './pages/(auth)/experience/loading';
 import LoadingGender from './pages/(auth)/gender/loading';
 import LoadingForgotPassword from './pages/(auth)/forgot-password/loading';
 import LoadingLogin from './pages/(auth)/login/loading';
+import LoadingAuthCallback from './pages/(auth)/auth-callback/loading';
 import LoadingName from './pages/(auth)/name/loading';
 import LoadingNationality from './pages/(auth)/nationality/loading';
 import LoadingObjective from './pages/(auth)/objective/loading';
@@ -109,6 +110,7 @@ const LogDateListPage = React.lazy(() => import('./pages/(dash)/work-log/log-dat
 const LogHourListPage = React.lazy(() => import('./pages/(dash)/work-log/log-hour-list/[date]/page'));
 const TrackWorkPage = React.lazy(() => import('./pages/(dash)/work-log/track-work/page'));
 const LoginPage = React.lazy(() => import('./pages/(auth)/login/page'));
+const AuthCallbackPage = React.lazy(() => import('./pages/(auth)/auth-callback/page'));
 //const ServerErrorPage = React.lazy(() => import('./pages/(errors)/server-error/page'));
 
 import NoInternetErrorPage from './pages/(errors)/no-internet/page';
@@ -182,6 +184,12 @@ export default function RouterComponent() {
             <Route exact={true} path="/login">
               <Suspense fallback={<LoadingLogin />}>
                 <LoginPage />
+              </Suspense>
+            </Route>
+
+            <Route exact={true} path="/auth/callback">
+              <Suspense fallback={<LoadingAuthCallback />}>
+                <AuthCallbackPage />
               </Suspense>
             </Route>
 

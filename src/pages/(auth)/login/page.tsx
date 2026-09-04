@@ -12,7 +12,8 @@ import OnboardFooter from "@/components/on-board/layout/footer";
 import SubmitButton from "@/components/ui/submit-button";
 import { setCredentials, setUnVerifiedToken } from "@/store/slices/authSlice";
 import { useAppDispatch } from "@/store/store";
-import { basicAuth } from "@/providers/auth.service";
+import { basicAuth, startUniverseLogin } from "@/providers/auth.service";
+import { Button } from "@/components/ui/button";
 import { Suspense, useEffect, useState } from "react";
 import { setIsProfileCompleted } from "@/store/slices/userSlice";
 import { useIonRouter } from "@ionic/react"; 
@@ -190,6 +191,24 @@ export default function LoginPage() {
               
             </form>
           </Form>
+
+          <div className="max-w-[560px] m-auto mb-[100px]">
+            <div className="flex items-center gap-3 mb-6">
+              <span className="h-px flex-1 bg-border"></span>
+              <span className="text-sm text-muted-foreground">{t('or')}</span>
+              <span className="h-px flex-1 bg-border"></span>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={() => startUniverseLogin()}
+              className="w-full h-[56px] text-base font-semibold leading-6"
+            >
+              <img src="/assets/images/icon-bawes.svg" alt="" className="w-5 h-5" />
+              {t("Continue with Universe")}
+            </Button>
+          </div>
 
           <OnboardFooter></OnboardFooter>
 

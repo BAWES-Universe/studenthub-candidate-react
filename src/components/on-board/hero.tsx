@@ -6,7 +6,7 @@ import { Link, useHistory } from "react-router-dom";
 import Spinner from "../common/spinner";
 import { useEffect, useState } from "react";
 import { GoogleAuth } from "@codetrix-studio/capacitor-google-auth";
-import { useGoogleIdTokenForAuth } from "@/providers/auth.service";
+import { useGoogleIdTokenForAuth, startUniverseLogin } from "@/providers/auth.service";
 import { setCredentials } from "@/store/slices/authSlice";
 import { setIsProfileCompleted } from "@/store/slices/userSlice";
 import { useTranslation } from "react-i18next";
@@ -132,6 +132,11 @@ export function Hero() {
               <img src='/assets/images/google.svg' />{t("Log in with Google")}</> 
           }
         </Button>
+
+      <Button variant="outline" size="lg" onClick={() => startUniverseLogin()}
+          className=" sm:w-[300px] h-[56px] mt-4">
+          <img src='/assets/images/icon-bawes.svg' className="w-5 h-5" />{t("Continue with Universe")}
+      </Button>
         
       <div className={ `xs:flex sm:block xs:bottom-[76px] ${window.innerHeight >= 780 ? 'xs:fixed' : 'mt-4'} sm:bottom-auto sm:mt-8 sm:relative font-semibold text-base `}>
         
