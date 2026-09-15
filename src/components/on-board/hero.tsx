@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { GoogleAuth } from "@codetrix-studio/capacitor-google-auth";
 import { useGoogleIdTokenForAuth } from "@/providers/auth.service";
 import { setCredentials } from "@/store/slices/authSlice";
+import { userLogin$ } from "@/providers/event.service";
 import { setIsProfileCompleted } from "@/store/slices/userSlice";
 import { useTranslation } from "react-i18next";
 import { alertDialog } from "@/hooks/use-alert-dialog";
@@ -47,6 +48,7 @@ export function Hero() {
           dispatch(setCredentials({
             token: res.token
           }));
+          userLogin$.next({});
 
           //todo: set language based on saved preference?
           //language_pref
