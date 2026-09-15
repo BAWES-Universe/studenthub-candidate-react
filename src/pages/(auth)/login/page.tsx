@@ -11,6 +11,7 @@ import { FormInput } from "@/components/ui/form-input";
 import OnboardFooter from "@/components/on-board/layout/footer";
 import SubmitButton from "@/components/ui/submit-button";
 import { setCredentials, setUnVerifiedToken } from "@/store/slices/authSlice";
+import { userLogin$ } from "@/providers/event.service";
 import { useAppDispatch } from "@/store/store";
 import { basicAuth } from "@/providers/auth.service";
 import { Suspense, useEffect, useState } from "react";
@@ -114,6 +115,7 @@ export default function LoginPage() {
         dispatch(setCredentials({
           token: res.token
         }));
+        userLogin$.next({});
 
         dispatch(setIsProfileCompleted({ 
           isProfileCompleted: res.isProfileCompleted

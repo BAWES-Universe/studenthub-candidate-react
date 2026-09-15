@@ -19,6 +19,7 @@ import { useAppDispatch } from "@/store/store";
 import { setIsProfileCompleted } from "@/store/slices/userSlice";
 import { updatePassword } from "@/providers/auth.service";
 import { setCredentials } from "@/store/slices/authSlice";
+import { userLogin$ } from "@/providers/event.service";
 import { page, track } from "@/providers/analytics.service";
 import { alertDialog } from "@/hooks/use-alert-dialog";
 import { useTranslation } from "react-i18next";
@@ -89,6 +90,7 @@ const formSchema = z.object({
                     dispatch(setCredentials({
                         token: res.accessToken.token
                       }));
+                      userLogin$.next({});
                 
                       dispatch(setIsProfileCompleted({ 
                         isProfileCompleted: res.accessToken.isProfileCompleted

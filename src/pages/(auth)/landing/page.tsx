@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { loginByKey } from "@/providers/auth.service";
 import { setIsProfileCompleted } from "@/store/slices/userSlice";
 import { setCredentials } from "@/store/slices/authSlice";
+import { userLogin$ } from "@/providers/event.service";
 import { useAppDispatch } from "@/store/store";
 import { useIonRouter } from "@ionic/react";
 import { useQuery } from "@/utils/common";
@@ -45,6 +46,7 @@ export default function LandingPage() {
         dispatch(setCredentials({
           token: res.token
         }));
+        userLogin$.next({});
   
         dispatch(setIsProfileCompleted({ 
           isProfileCompleted: res.isProfileCompleted

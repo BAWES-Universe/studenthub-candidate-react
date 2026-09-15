@@ -21,6 +21,7 @@ import { resendVerificationEmail, verifyEmail } from "@/providers/auth.service";
 import { errorMessage, useQuery } from "@/utils/common";
 import { useAppDispatch } from "@/store/store";
 import { setCredentials, setUnVerifiedToken } from "@/store/slices/authSlice";
+import { userLogin$ } from "@/providers/event.service";
 import { setIsProfileCompleted, setUser } from "@/store/slices/userSlice";
 import { page, track } from "@/providers/analytics.service";
 import { alertDialog } from "@/hooks/use-alert-dialog";
@@ -144,6 +145,7 @@ export default function VerifyEmailPage() {
         dispatch(setCredentials({
           token: res.token
         }));
+        userLogin$.next({});
 
         dispatch(setIsProfileCompleted({ 
           isProfileCompleted: res.isProfileCompleted
