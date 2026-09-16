@@ -16,7 +16,7 @@ export function useQuery() {
 }
 
 export function dateTimeFormat(value: string, dateFormat: string): string {
-  return format(value, dateFormat, { locale: i18n.language == 'en' ? enUS : ar })
+  return format(toDate(value) as Date, dateFormat, { locale: i18n.language == 'en' ? enUS : ar })
 }
 
 export function formatNumber(value: number) {
