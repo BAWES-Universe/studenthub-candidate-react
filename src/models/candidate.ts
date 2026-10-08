@@ -26,6 +26,7 @@ export class Candidate {
     candidate_intro?: string;
     candidate_gender?: number;
     candidate_personal_photo?: string;
+    candidate_personal_photo_url?: string | null;
     candidate_video?: string;
     candidate_video_processed?: any;
     candidate_email?: string;
