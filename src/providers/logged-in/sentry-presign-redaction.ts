@@ -36,7 +36,8 @@ export function redactPresignedUploadUrl(url: string): string {
     }
 
     const alreadyRedacted = sensitiveKeys.every((key) => {
-        return (parsed.searchParams.get(key) || '').toLowerCase() === '[redacted]';
+        const values = parsed.searchParams.getAll(key);
+        return values.length > 0 && values.every((value) => value.toLowerCase() === '[redacted]');
     });
     if (alreadyRedacted) {
         return url;

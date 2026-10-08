@@ -3,6 +3,7 @@ import { join } from 'path';
 import { describe, expect, it } from 'vitest';
 import {
     redactPresignedReplayEvent,
+    redactPresignedUploadUrl,
     redactPresignedUploadBreadcrumb,
     redactPresignedUploadSpan,
     redactPresignedUploadTransaction,
@@ -292,5 +293,15 @@ describe('candidate telemetry redaction', () => {
 
         const shared = { url: 'https://example.test/plain' };
         expect(redactPresignedUploadTransaction({ spans: [shared, shared] })).toBeNull();
+    });
+
+    it('redacts a second raw value of a sensitive parameter and keeps a fully redacted URL', () => {
+        const fullyRedacted = 'https://' + TEMP_UPLOAD_HOST + '/preview.jpg?X-Amz-Signature=%5Bredacted%5D&X-Amz-Credential=%5Bredacted%5D';
+        expect(redactPresignedUploadUrl(fullyRedacted)).toBe(fullyRedacted);
+
+        const mixed = 'https://' + TEMP_UPLOAD_HOST + '/preview.jpg?X-Amz-Signature=%5Bredacted%5D&X-Amz-Signature=syntheticrawvalue';
+        const cleaned = redactPresignedUploadUrl(mixed);
+        expect(cleaned).not.toContain('syntheticrawvalue');
+        expect(cleaned.toLowerCase()).toContain('x-amz-signature=%5bredacted%5d');
     });
 });
