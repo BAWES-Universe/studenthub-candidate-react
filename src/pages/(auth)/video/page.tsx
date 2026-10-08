@@ -16,7 +16,8 @@ import { dateTimeFormat, errorMessage, useQuery } from "@/utils/common";
 import { useIonRouter } from "@ionic/react"; 
 import { useAppDispatch, useAppSelector } from "@/store/store";
 import { setUser } from "@/store/slices/userSlice";
-import { setAWSConfig, uploadFileToTempS3, getFileMetadata } from "@/providers/logged-in/aws.service";
+import { uploadFileToTempS3, getFileMetadata } from "@/providers/logged-in/aws.service";
+import { CANDIDATE_RESUME_ACCEPT, CANDIDATE_VIDEO_ACCEPT, candidateUploadError } from "@/providers/logged-in/temp-upload";
 import { page, track } from "@/providers/analytics.service";
 import { alertDialog } from "@/hooks/use-alert-dialog";
 import { useTranslation } from "react-i18next";
@@ -57,7 +58,7 @@ export default function VideoPage() {
   const [uploadingPortfolio, setUploadingPortfolio] = useState(false);
   const [uploadType, setUploadType] = useState('resume');
   const [resumeSize, setResumeSize] = useState(0);
-  const [resumeUploadedAt, setResumeUploadedAt] = useState(null);
+  const [resumeUploadedAt, setResumeUploadedAt] = useState<string | null>(null);
 
   const [progress, setProgress] = useState(0);
 
@@ -96,9 +97,7 @@ export default function VideoPage() {
 
     page('Video Page');
 
-    setAWSConfig().then(() => {
-      updateResumeMetadata();
-    });
+    updateResumeMetadata();
 
     /*if (query.get('fromProfile'))
       //router.prefetch('/profile');
@@ -200,15 +199,17 @@ export default function VideoPage() {
 
     const key = 'candidate-resume/' + form.getValues().resume;
 
-    getFileMetadata(key).then((response: any) => {
-       
-      const size = response.ContentLength;//headers.get('content-length') || "0";
-      const sizeInKB = (Number(size) / 1024).toFixed(2);
+    getFileMetadata(key).then((response) => {
+      if (!response || !response.ContentLength) {
+        setResumeSize(0);
+        return;
+      }
 
-      const lastModified = response.LastModified;//.headers.get('last-modified');
-
-      setResumeSize(Number(sizeInKB));   
-      setResumeUploadedAt(lastModified);
+      const sizeInKB = (Number(response.ContentLength) / 1024).toFixed(2);
+      setResumeSize(Number(sizeInKB));
+      if (response.LastModified) {
+        setResumeUploadedAt(response.LastModified.toISOString());
+      }
     });
   }
 
@@ -318,9 +319,7 @@ export default function VideoPage() {
     const file = new File([new Blob(recordedChunks, { type: 'video/' + format })], 
       user?.candidate_id + '.' + format);
  
-    uploadVideoFile(file, {
-      duration: (maxDuration - timer) + '',
-    });
+    uploadVideoFile(file);
   }
 
   function validateVideoFile(file: any) {
@@ -343,10 +342,10 @@ export default function VideoPage() {
           reject(t('Invalid video. Please select a video file.'));
         };
 
-        const type = file.type.split('/')[0];
-
-        if (type != 'video') {
-          reject(t('Invalid File format'));
+        const formatError = candidateUploadError(file, 'video');
+        if (formatError) {
+          reject(formatError);
+          return;
         }
 
         video.src = window.URL.createObjectURL(file);
@@ -380,11 +379,21 @@ export default function VideoPage() {
     });
   }
 
-  function uploadVideoFile(file: any, metadata = {}) {
+  function uploadVideoFile(file: any) {
+
+    const formatError = candidateUploadError(file, 'video');
+    if (formatError) {
+      alertDialog({
+        title: t("Invalid File Format"),
+        description: formatError
+      });
+      setUploadingVideo(false);
+      return;
+    }
 
     setUploadingVideo(true);
 
-    const upload = uploadFileToTempS3(file);
+    const upload = uploadFileToTempS3(file, 'video');
 
     upload.on('httpUploadProgress', (progress: any) => {
       console.log(progress);
@@ -1120,12 +1129,20 @@ export default function VideoPage() {
           type="file"
           id="resumeUpload"
           className="hidden"
-          accept="application/pdf"
+          accept={CANDIDATE_RESUME_ACCEPT}
           onChange={(e) => {
               const file = e.target.files?.[0];
 
               if (file) {
-                  //
+                  const formatError = candidateUploadError(file, 'resume');
+                  if (formatError) {
+                    alertDialog({
+                      title: t("Invalid File Format"),
+                      description: formatError
+                    });
+                    e.target.value = '';
+                    return;
+                  }
 
                   if (uploadType == 'portfolio') {
                     setUploadingPortfolio(true);
@@ -1135,11 +1152,7 @@ export default function VideoPage() {
 
                   setProgress(0);
 
-                  /*setInterval(() => {
-                    setProgress(progress + 10);
-                  }, 1000);*/
-
-                  const upload = uploadFileToTempS3(file);
+                  const upload = uploadFileToTempS3(file, 'resume');
                   
                   console.log(upload);
 
@@ -1187,7 +1200,7 @@ export default function VideoPage() {
           id="videoUpload"
           className="hidden"
           ref={videoInput}
-          accept="video/*"
+          accept={CANDIDATE_VIDEO_ACCEPT}
           onChange={(e) => {
             browserVideoUpload(e);
           }}

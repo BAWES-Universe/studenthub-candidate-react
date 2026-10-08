@@ -10,6 +10,7 @@ import {
 import { CandidateAction } from "./action";
 import { useHistory } from 'react-router-dom';
 import { useEffect, useState } from "react";
+import { personalPhotoSrc, retainPhotoKeyAfterLoadError } from "@/providers/logged-in/profile-photo-display";
 import { IonBadge, IonIcon } from "@ionic/react";
 import { useTranslation } from "react-i18next";
 
@@ -19,13 +20,13 @@ export function Name() {
     const router = useHistory();
 
     const [isActionOpen, setIsActionOpen] = useState(false);
+    const [photoFailed, setPhotoFailed] = useState(false);
     
     const { t } = useTranslation();
     
     useEffect(() => {
-        //router.prefetch("/name?fromProfile=1");
-        //router.prefetch("/personal-photo?fromProfile=1");
-    }, []);
+        setPhotoFailed(false);
+    }, [user?.candidate_personal_photo, user?.candidate_personal_photo_url]);
     
     const updateNameClicked = async () => {
         router.push('/name?fromProfile=1', {
@@ -42,9 +43,12 @@ export function Name() {
     return (
         <div className="w-full h-20 justify-start items-center gap-4 inline-flex mt-4">
             <div className="w-20 h-20 relative rounded-[44px] cursor-pointer overflow-hidden" onClick={updatePhotoClicked}>
-            { user.candidate_personal_photo && <img  src={import.meta.env.VITE_CLOUDINARY_URL + 'candidate-photo/' + 
-                user.candidate_personal_photo} /> }
-            { !user.candidate_personal_photo && <img src="/assets/images/avatar.jpg" /> }
+            { user.candidate_personal_photo && !photoFailed && user.candidate_personal_photo_url
+                ? <img src={personalPhotoSrc(user)} onError={() => {
+                    retainPhotoKeyAfterLoadError(user);
+                    setPhotoFailed(true);
+                  }} />
+                : <img src={personalPhotoSrc(null)} /> }
             </div>
             <div className="grow shrink basis-0 flex-col justify-start items-start gap-1 inline-flex">
                 <div className="w-full justify-start items-center gap-6 inline-flex">

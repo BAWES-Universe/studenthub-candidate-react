@@ -17,7 +17,10 @@ import { errorMessage, useQuery } from "@/utils/common";
 import { useIonRouter } from "@ionic/react";
 import { useAppDispatch, useAppSelector } from "@/store/store";
 import { setUser } from "@/store/slices/userSlice";
-import { setAWSConfig, uploadFileToTempS3 } from "@/providers/logged-in/aws.service";
+import { uploadFileToTempS3 } from "@/providers/logged-in/aws.service";
+import { CANDIDATE_IMAGE_ACCEPT, candidateUploadError } from "@/providers/logged-in/temp-upload";
+import { personalPhotoSrc, retainPhotoKeyAfterLoadError } from "@/providers/logged-in/profile-photo-display";
+import { useMissingPersonalPhotoUrlRefresh } from "@/providers/logged-in/personal-photo-url-refresh";
 import { page, track } from "@/providers/analytics.service";
 import { alertDialog } from "@/hooks/use-alert-dialog";
 import { useTranslation } from "react-i18next";
@@ -27,12 +30,14 @@ import AuthLayout from "../layout";
 
 // Define the User type
 interface User {
-  candidate_personal_photo?: string; // Add other properties as needed
+  candidate_personal_photo?: string;
+  candidate_personal_photo_url?: string | null;
 }
 
 export default function PersonalPhotoPage() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [photoPreviewFailed, setPhotoPreviewFailed] = useState(false);
 
   const { user } = useAppSelector(state => state.user as { user: User });
 
@@ -55,8 +60,7 @@ export default function PersonalPhotoPage() {
     mode: "all",
     defaultValues: {
         candidate_personal_photo: user?.candidate_personal_photo || "",
-        candidate_personal_photo_url: import.meta.env.VITE_CLOUDINARY_URL + 'candidate-photo/' + 
-           user?.candidate_personal_photo || "",
+        candidate_personal_photo_url: user?.candidate_personal_photo_url || "",
     },
   })
 
@@ -64,8 +68,6 @@ export default function PersonalPhotoPage() {
 
     page('Personal Photo Page');
 
-    setAWSConfig();
-    
     /*if (query.get('fromProfile'))
       //router.prefetch('/profile');
     else
@@ -85,14 +87,33 @@ export default function PersonalPhotoPage() {
         dispatch(setUser({ user: res }));
         
         form.setValue('candidate_personal_photo', res.candidate_personal_photo || "");
-        form.setValue('candidate_personal_photo_url', import.meta.env.VITE_CLOUDINARY_URL + 'candidate-photo/' + 
-           res.candidate_personal_photo || "");
+        form.setValue('candidate_personal_photo_url', res.candidate_personal_photo_url || "");
+        setPhotoPreviewFailed(false);
 
       }).finally(() => {
         setLoading(false);
       });
     }
   }, [user]);
+
+  useMissingPersonalPhotoUrlRefresh({
+    user,
+    formPhotoKey: () => form.getValues().candidate_personal_photo,
+    loadProfile: () => profile(),
+    apply: (photo) => {
+      if (!user) {
+        return;
+      }
+      dispatch(setUser({ user: {
+        ...user,
+        candidate_personal_photo: photo.candidate_personal_photo,
+        candidate_personal_photo_url: photo.candidate_personal_photo_url,
+      } }));
+      form.setValue('candidate_personal_photo', photo.candidate_personal_photo);
+      form.setValue('candidate_personal_photo_url', photo.candidate_personal_photo_url);
+      setPhotoPreviewFailed(false);
+    },
+  });
   
   // 2. Define a submit handler.
   function onSubmit(values: z.infer<typeof formSchema>) {
@@ -119,7 +140,8 @@ export default function PersonalPhotoPage() {
 
           dispatch(setUser({ user: {
             ...user,
-            candidate_personal_photo: res.candidate_personal_photo
+            candidate_personal_photo: res.candidate_personal_photo,
+            candidate_personal_photo_url: res.candidate_personal_photo_url
           } }));
         }
 
@@ -140,11 +162,13 @@ export default function PersonalPhotoPage() {
     });
   } 
 
-  function resetPhoto() {
-    form.setValue('candidate_personal_photo', "");
-    form.trigger('candidate_personal_photo');
-    form.setValue('candidate_personal_photo_url', "");
-    form.trigger('candidate_personal_photo_url');
+  function onPhotoLoadError() {
+    const retained = retainPhotoKeyAfterLoadError({
+      candidate_personal_photo: form.getValues().candidate_personal_photo,
+      candidate_personal_photo_url: form.getValues().candidate_personal_photo_url,
+    });
+    form.setValue('candidate_personal_photo', retained.candidate_personal_photo || "");
+    setPhotoPreviewFailed(true);
   }
   
   return (
@@ -166,7 +190,12 @@ export default function PersonalPhotoPage() {
             <div className="w-40 h-40 m-auto border-[color:var(--Neutral-30,#EEEEF0)] 
                 [background:var(--Neutral-10,#FAFAFA)] rounded-[80px] border-[1.333px] border-dashed overflow-hidden">
                 
-                <img onError={() => resetPhoto()} src={form.getValues().candidate_personal_photo_url} 
+                <img onError={() => onPhotoLoadError()} src={photoPreviewFailed
+                  ? personalPhotoSrc(null)
+                  : personalPhotoSrc({
+                    candidate_personal_photo: form.getValues().candidate_personal_photo,
+                    candidate_personal_photo_url: form.getValues().candidate_personal_photo_url,
+                  })}
                   className="w-40 h-40"></img>   
 
             </div> }
@@ -192,7 +221,7 @@ export default function PersonalPhotoPage() {
                     type="file"
                     id="photoUpload"
                     className="hidden"
-                    accept="image/*"
+                    accept={CANDIDATE_IMAGE_ACCEPT}
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
@@ -216,9 +245,18 @@ export default function PersonalPhotoPage() {
                         e.target.value = '';
                         return;
                       }
+                      const formatError = candidateUploadError(file, 'profile_photo');
+                      if (formatError) {
+                        alertDialog({
+                          title: t("Invalid File Format"),
+                          description: formatError
+                        });
+                        e.target.value = '';
+                        return;
+                      }
                       setUploading(true);
 
-                      const upload = uploadFileToTempS3(file);
+                      const upload = uploadFileToTempS3(file, 'profile_photo');
 
                       upload.on('httpUploadProgress', (progress: any) => {
                         console.log(progress);
@@ -230,6 +268,7 @@ export default function PersonalPhotoPage() {
                         form.trigger('candidate_personal_photo');
                         form.setValue('candidate_personal_photo_url', response.Location);
                         form.trigger('candidate_personal_photo_url');
+                        setPhotoPreviewFailed(false);
 
                       }).catch((error) => {
                         // Handle upload error

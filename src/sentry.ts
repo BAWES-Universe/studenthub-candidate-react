@@ -1,5 +1,11 @@
 import * as Sentry from "@sentry/capacitor";
 import * as SentryReact from "@sentry/react";
+import {
+  redactPresignedReplayEvent,
+  redactPresignedUploadBreadcrumb,
+  redactPresignedUploadSpan,
+  redactPresignedUploadTransaction,
+} from "@/providers/logged-in/sentry-presign-redaction";
 
 Sentry.init(
   {
@@ -14,11 +20,16 @@ Sentry.init(
       // Registers and configures the Tracing integration,
       // which automatically instruments your application to monitor its
       // performance, including custom Angular routing instrumentation
-      Sentry.browserTracingIntegration(),
+      SentryReact.browserTracingIntegration(),
       // Registers the Replay integration,
       // which automatically captures Session Replays
-      Sentry.replayIntegration(),
+      SentryReact.replayIntegration({
+        beforeAddRecordingEvent: redactPresignedReplayEvent,
+      }),
     ],
+    beforeBreadcrumb: (breadcrumb) => redactPresignedUploadBreadcrumb(breadcrumb),
+    beforeSendSpan: (span) => redactPresignedUploadSpan(span),
+    beforeSendTransaction: (event) => redactPresignedUploadTransaction(event),
     // Set tracesSampleRate to 1.0 to capture 100%
     // of transactions for tracing.
     // We recommend adjusting this value in production

@@ -20,7 +20,8 @@ import { errorMessage, useQuery } from "@/utils/common";
 import { useIonRouter } from "@ionic/react";
 import { useAppDispatch, useAppSelector } from "@/store/store";
 import { setUser } from "@/store/slices/userSlice";
-import { setAWSConfig, uploadFileToTempS3 } from "@/providers/logged-in/aws.service";
+import { uploadFileToTempS3 } from "@/providers/logged-in/aws.service";
+import { CANDIDATE_IMAGE_ACCEPT, candidateUploadError } from "@/providers/logged-in/temp-upload";
 import { page, track } from "@/providers/analytics.service";
 import { alertDialog } from "@/hooks/use-alert-dialog";
 import { useTranslation } from "react-i18next";
@@ -49,8 +50,6 @@ export default function CivilIdPage() {
 
     page('Civil ID Page');
 
-    setAWSConfig();
-    
     /*if (match && match.params.fromProfile)
       //router.prefetch('/profile');
     else
@@ -299,14 +298,24 @@ export default function CivilIdPage() {
                     type="file"
                     id="frontIdUpload"
                     className="hidden"
-                    accept="image/*"
+                    accept={CANDIDATE_IMAGE_ACCEPT}
                     onChange={(e) => {
                         const file = e.target.files?.[0];
 
                         if (file) {
+                            const formatError = candidateUploadError(file, 'civil_id');
+                            if (formatError) {
+                              alertDialog({
+                                title: t("Invalid File Format"),
+                                description: formatError
+                              });
+                              e.target.value = '';
+                              return;
+                            }
+
                             setUploadingFrontId(true);
 
-                            const upload = uploadFileToTempS3(file);
+                            const upload = uploadFileToTempS3(file, 'civil_id');
 
                             upload.on('httpUploadProgress', (progress: any) => {
                               console.log(progress);
@@ -376,13 +385,23 @@ export default function CivilIdPage() {
                     type="file"
                     id="backIdUpload"
                     className="hidden"
-                    accept="image/*"
+                    accept={CANDIDATE_IMAGE_ACCEPT}
                     onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
+                            const formatError = candidateUploadError(file, 'civil_id');
+                            if (formatError) {
+                              alertDialog({
+                                title: t("Invalid File Format"),
+                                description: formatError
+                              });
+                              e.target.value = '';
+                              return;
+                            }
+
                             setUploadingBackId(true);
 
-                            const upload = uploadFileToTempS3(file);  
+                            const upload = uploadFileToTempS3(file, 'civil_id');  
 
                             upload.on('httpUploadProgress', (progress: any) => {
                               console.log(progress);
