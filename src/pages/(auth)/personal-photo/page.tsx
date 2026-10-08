@@ -20,6 +20,7 @@ import { setUser } from "@/store/slices/userSlice";
 import { uploadFileToTempS3 } from "@/providers/logged-in/aws.service";
 import { CANDIDATE_IMAGE_ACCEPT, candidateUploadError } from "@/providers/logged-in/temp-upload";
 import { personalPhotoSrc, retainPhotoKeyAfterLoadError } from "@/providers/logged-in/profile-photo-display";
+import { useMissingPersonalPhotoUrlRefresh } from "@/providers/logged-in/personal-photo-url-refresh";
 import { page, track } from "@/providers/analytics.service";
 import { alertDialog } from "@/hooks/use-alert-dialog";
 import { useTranslation } from "react-i18next";
@@ -94,6 +95,25 @@ export default function PersonalPhotoPage() {
       });
     }
   }, [user]);
+
+  useMissingPersonalPhotoUrlRefresh({
+    user,
+    formPhotoKey: () => form.getValues().candidate_personal_photo,
+    loadProfile: () => profile(),
+    apply: (photo) => {
+      if (!user) {
+        return;
+      }
+      dispatch(setUser({ user: {
+        ...user,
+        candidate_personal_photo: photo.candidate_personal_photo,
+        candidate_personal_photo_url: photo.candidate_personal_photo_url,
+      } }));
+      form.setValue('candidate_personal_photo', photo.candidate_personal_photo);
+      form.setValue('candidate_personal_photo_url', photo.candidate_personal_photo_url);
+      setPhotoPreviewFailed(false);
+    },
+  });
   
   // 2. Define a submit handler.
   function onSubmit(values: z.infer<typeof formSchema>) {

@@ -35,6 +35,13 @@ export function redactPresignedUploadUrl(url: string): string {
         return url;
     }
 
+    const alreadyRedacted = sensitiveKeys.every((key) => {
+        return (parsed.searchParams.get(key) || '').toLowerCase() === '[redacted]';
+    });
+    if (alreadyRedacted) {
+        return url;
+    }
+
     sensitiveKeys.forEach((key) => {
         parsed.searchParams.set(key, '[redacted]');
     });
@@ -42,28 +49,54 @@ export function redactPresignedUploadUrl(url: string): string {
     return parsed.toString();
 }
 
+function redactSensitiveQueryValues(value: string): { value: string; changed: boolean } {
+    let changed = false;
+    const next = value.replace(
+        /(x-amz-signature|x-amz-credential|x-amz-security-token)=([^&#\s'"<>]*)/gi,
+        (match, key, raw) => {
+            const lower = String(raw).toLowerCase();
+            if (lower === '[redacted]' || lower === '%5bredacted%5d') {
+                return match;
+            }
+            changed = true;
+            return key + '=[redacted]';
+        }
+    );
+    return { value: next, changed };
+}
+
 function redactEmbeddedText(value: string): Redaction {
-    if (value.indexOf(TEMP_UPLOAD_HOST) === -1) {
+    const hasHost = value.indexOf(TEMP_UPLOAD_HOST) !== -1;
+    if (!hasHost && !stillHasSignedMaterial(value)) {
         return { value, changed: false, unsafe: false };
     }
 
+    let next = value;
     let changed = false;
-    let unsafe = false;
-    const next = value.replace(EMBEDDED_URL, (match) => {
-        const redacted = redactPresignedUploadUrl(match);
-        if (redacted === match) {
-            unsafe = true;
-            return match;
-        }
-        changed = true;
-        return redacted;
-    });
-
-    if (!unsafe && next.indexOf(TEMP_UPLOAD_HOST) !== -1 && stillHasSignedMaterial(next)) {
-        unsafe = true;
+    if (hasHost) {
+        next = value.replace(EMBEDDED_URL, (match) => {
+            const redacted = redactPresignedUploadUrl(match);
+            if (redacted === match) {
+                return match;
+            }
+            changed = true;
+            return redacted;
+        });
     }
 
-    return { value: next, changed, unsafe };
+    if (stillHasSignedMaterial(next)) {
+        const queryRedacted = redactSensitiveQueryValues(next);
+        if (queryRedacted.changed) {
+            next = queryRedacted.value;
+            changed = true;
+        }
+    }
+
+    if (stillHasSignedMaterial(next)) {
+        return { value, changed: false, unsafe: true };
+    }
+
+    return { value: changed ? next : value, changed, unsafe: false };
 }
 
 function stillHasSignedMaterial(value: string): boolean {

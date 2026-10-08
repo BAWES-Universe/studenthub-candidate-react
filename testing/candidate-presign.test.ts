@@ -233,7 +233,10 @@ describe('candidate telemetry redaction', () => {
         const repeated = redactPresignedUploadBreadcrumb({
             message: signedUrl + ' x-amz-signature=secondrawsig',
         });
-        expect(repeated).toBeNull();
+        expect(repeated).not.toBeNull();
+        expect(repeated.message).not.toContain('rawsigvalue');
+        expect(repeated.message).not.toContain('secondrawsig');
+        expect(uploadUrl).toContain('rawsigvalue');
 
         const span = redactPresignedUploadSpan({
             description: 'PUT ' + signedUrl,
@@ -255,5 +258,39 @@ describe('candidate telemetry redaction', () => {
         expect(JSON.stringify(replay)).not.toContain('rawsigvalue');
         const dom = { type: 3, data: { source: 0 } };
         expect(redactPresignedReplayEvent(dom)).toBe(dom);
+    });
+
+    it('keeps unsigned and already-redacted temporary URLs and redacts a query string without the bucket host', () => {
+        const uploadUrl = signedUrl;
+        const publicUrl = 'https://' + TEMP_UPLOAD_HOST + '/preview.jpg';
+        const publicBreadcrumb = {
+            category: 'xhr',
+            message: 'GET ' + publicUrl,
+            data: { url: publicUrl, status_code: 200 },
+        };
+        expect(redactPresignedUploadBreadcrumb(publicBreadcrumb)).toBe(publicBreadcrumb);
+        const publicTransaction = {
+            type: 'transaction',
+            spans: [{ description: publicUrl }],
+        };
+        expect(redactPresignedUploadTransaction(publicTransaction)).toBe(publicTransaction);
+
+        const redactedUrl = 'https://' + TEMP_UPLOAD_HOST + '/preview.jpg?X-Amz-Signature=%5Bredacted%5D&X-Amz-Credential=%5Bredacted%5D';
+        const redactedBreadcrumb = { message: redactedUrl, data: { url: redactedUrl } };
+        expect(redactPresignedUploadBreadcrumb(redactedBreadcrumb)).toBe(redactedBreadcrumb);
+
+        const queryOnly = redactPresignedUploadSpan({
+            description: 'PUT',
+            data: { 'http.query': 'X-Amz-Signature=rawsigvalue&X-Amz-Credential=credvalue' },
+        });
+        expect(queryOnly.data['http.query']).toBe('X-Amz-Signature=[redacted]&X-Amz-Credential=[redacted]');
+        expect(queryOnly.data['http.query']).not.toContain('rawsigvalue');
+        expect(uploadUrl).toContain('rawsigvalue');
+
+        const ordinary = { category: 'ui', message: 'clicked profile' };
+        expect(redactPresignedUploadBreadcrumb(ordinary)).toBe(ordinary);
+
+        const shared = { url: 'https://example.test/plain' };
+        expect(redactPresignedUploadTransaction({ spans: [shared, shared] })).toBeNull();
     });
 });
