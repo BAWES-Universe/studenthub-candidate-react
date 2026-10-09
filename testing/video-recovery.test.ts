@@ -73,6 +73,48 @@ describe('stuck candidate video recovery', () => {
         expect(staleAfterReplacement.candidate_name).toBe('Noura');
     });
 
+    it('accepts a current-job failure that clears the video and rejects a stale clear', () => {
+        const cleared = applyWatchedVideoStatus(pending, {
+            candidate_video: null,
+            candidate_video_processed: 1,
+        }, {
+            epoch: 0,
+            currentEpoch: 0,
+            watchedVideo: 'stuck-output_1',
+        });
+        expect(cleared.candidate_video).toBeNull();
+        expect(cleared.candidate_video_processed).toBe(1);
+        expect(cleared.candidate_name).toBe('Noura');
+        expect(cleared.candidate_email).toBe('noura@example.test');
+        expect(showsExistingUploadControls(cleared.candidate_video)).toBe(true);
+
+        const duringRemoval = applyWatchedVideoStatus(pending, {
+            candidate_video: null,
+            candidate_video_processed: 1,
+        }, {
+            epoch: 0,
+            currentEpoch: 1,
+            watchedVideo: 'stuck-output_1',
+        });
+        expect(duringRemoval).toBe(pending);
+
+        const replaced = applySavedVideo(pending, {
+            operation: 'success',
+            candidate_video: 'ready_1',
+            candidate_video_processed: 1,
+        });
+        const staleClear = applyWatchedVideoStatus(replaced, {
+            candidate_video: null,
+            candidate_video_processed: 1,
+        }, {
+            epoch: 2,
+            currentEpoch: 2,
+            watchedVideo: 'stuck-output_1',
+        });
+        expect(staleClear.candidate_video).toBe('ready_1');
+        expect(staleClear.candidate_name).toBe('Noura');
+    });
+
     it('still applies the current video completion and ignores progress', () => {
         const ready = applyWatchedVideoStatus(pending, {
             candidate_video: 'stuck-output_1',
@@ -114,5 +156,7 @@ describe('stuck candidate video recovery', () => {
         expect(page).toContain('applyRemovalResult');
         expect(page).toContain('applyWatchedVideoStatus');
         expect(page).toContain('showsExistingUploadControls');
+        expect(page).toContain('removalInFlight.current');
+        expect(page).toContain('disabled={removingVideo}');
     });
 });

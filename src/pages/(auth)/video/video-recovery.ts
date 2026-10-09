@@ -68,13 +68,16 @@ export function applyWatchedVideoStatus<T extends VideoProfile>(
         return user;
     }
 
-    if (!status.candidate_video_processed || status.candidate_video !== watch.watchedVideo) {
+    const failedCurrentJob = status.candidate_video === null && !!status.candidate_video_processed;
+    const completedCurrentJob = !!status.candidate_video_processed && status.candidate_video === watch.watchedVideo;
+
+    if (!failedCurrentJob && !completedCurrentJob) {
         return user;
     }
 
     return {
         ...user,
-        candidate_video: status.candidate_video,
+        candidate_video: failedCurrentJob ? null : status.candidate_video,
         candidate_video_processed: status.candidate_video_processed,
     };
 }

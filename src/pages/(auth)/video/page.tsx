@@ -81,6 +81,7 @@ export default function VideoPage() {
   const userRef = useRef(user);
   userRef.current = user;
   const videoEpoch = useRef(0);
+  const removalInFlight = useRef(false);
   const dispatch = useAppDispatch();
   const router = useIonRouter(); 
   const query = useQuery();
@@ -126,6 +127,7 @@ export default function VideoPage() {
         return;
       }
 
+      form.setValue('video', next.candidate_video || "");
       dispatch(setUser({ user: next }));
     });
 
@@ -266,14 +268,21 @@ export default function VideoPage() {
   }
 
   function removeVideo(){
+    if (removalInFlight.current) {
+      return;
+    }
+
+    removalInFlight.current = true;
     const epochAtStart = videoEpoch.current;
+    const videoAtStart = userRef.current?.candidate_video ?? null;
     videoEpoch.current = epochAtStart + 1;
     setRemovingVideo(true);
 
     deleteVideo().then((res) => {
       const current = userRef.current;
-      if (!current) {
-        videoEpoch.current = epochAtStart;
+      const removalStillCurrent = videoEpoch.current === epochAtStart + 1;
+      const videoStillOriginal = !current?.candidate_video || current.candidate_video === videoAtStart;
+      if (!current || !removalStillCurrent || !videoStillOriginal) {
         return;
       }
 
@@ -290,12 +299,15 @@ export default function VideoPage() {
       form.setValue('video', "");
       dispatch(setUser({ user: outcome.user }));
     }).catch(() => {
-      videoEpoch.current = epochAtStart;
+      if (videoEpoch.current === epochAtStart + 1) {
+        videoEpoch.current = epochAtStart;
+      }
       alertDialog({
         title: t("Error"),
         description: t("Could not remove the video. Please try again."),
       });
     }).finally(() => {
+      removalInFlight.current = false;
       setRemovingVideo(false);
     });
   }
@@ -303,7 +315,7 @@ export default function VideoPage() {
   function removeIntroButton() {
     return (
       <div className="flex justify-center items-center">
-        <Button variant={ "ghost"} onClick={() => removeVideo()}
+        <Button variant={ "ghost"} disabled={removingVideo} onClick={() => removeVideo()}
           className="text-[color:var(--Neutral-70,#7D7D8D)] text-sm font-medium leading-5 text-center m-auto mt-[12px]">
           <img src="/assets/icons/trash.svg" className="w-[16px]"></img>
           { removingVideo ? t("Removing...") : t("Remove Intro") }
