@@ -81,7 +81,8 @@ export default function VideoPage() {
   const userRef = useRef(user);
   userRef.current = user;
   const videoEpoch = useRef(0);
-  const removalInFlight = useRef(false);
+  const videoMutationInFlight = useRef(false);
+  const videoBusy = removingVideo || uploadingVideo;
   const dispatch = useAppDispatch();
   const router = useIonRouter(); 
   const query = useQuery();
@@ -268,17 +269,17 @@ export default function VideoPage() {
   }
 
   function removeVideo(){
-    if (removalInFlight.current) {
-      return;
+    if (videoMutationInFlight.current) {
+      return Promise.resolve();
     }
 
-    removalInFlight.current = true;
+    videoMutationInFlight.current = true;
     const epochAtStart = videoEpoch.current;
     const videoAtStart = userRef.current?.candidate_video ?? null;
     videoEpoch.current = epochAtStart + 1;
     setRemovingVideo(true);
 
-    deleteVideo().then((res) => {
+    return deleteVideo().then((res) => {
       const current = userRef.current;
       const removalStillCurrent = videoEpoch.current === epochAtStart + 1;
       const videoStillOriginal = !current?.candidate_video || current.candidate_video === videoAtStart;
@@ -307,7 +308,7 @@ export default function VideoPage() {
         description: t("Could not remove the video. Please try again."),
       });
     }).finally(() => {
-      removalInFlight.current = false;
+      videoMutationInFlight.current = false;
       setRemovingVideo(false);
     });
   }
@@ -315,7 +316,7 @@ export default function VideoPage() {
   function removeIntroButton() {
     return (
       <div className="flex justify-center items-center">
-        <Button variant={ "ghost"} disabled={removingVideo} onClick={() => removeVideo()}
+        <Button variant={ "ghost"} disabled={videoBusy} onClick={() => removeVideo()}
           className="text-[color:var(--Neutral-70,#7D7D8D)] text-sm font-medium leading-5 text-center m-auto mt-[12px]">
           <img src="/assets/icons/trash.svg" className="w-[16px]"></img>
           { removingVideo ? t("Removing...") : t("Remove Intro") }
@@ -395,7 +396,7 @@ export default function VideoPage() {
     const file = new File([new Blob(recordedChunks, { type: 'video/' + format })], 
       user?.candidate_id + '.' + format);
  
-    uploadVideoFile(file);
+    return uploadVideoFile(file);
   }
 
   function validateVideoFile(file: any) {
@@ -444,8 +445,8 @@ export default function VideoPage() {
       return false;
     }
 
-    validateVideoFile(fileList[0]).then(() => {
-      uploadVideoFile(fileList[0]);
+    return validateVideoFile(fileList[0]).then(() => {
+      return uploadVideoFile(fileList[0]);
     }, err => {
 
       alertDialog({
@@ -456,6 +457,9 @@ export default function VideoPage() {
   }
 
   function uploadVideoFile(file: any) {
+    if (videoMutationInFlight.current) {
+      return Promise.resolve();
+    }
 
     const formatError = candidateUploadError(file, 'video');
     if (formatError) {
@@ -464,49 +468,47 @@ export default function VideoPage() {
         description: formatError
       });
       setUploadingVideo(false);
-      return;
+      return Promise.resolve();
     }
 
+    videoMutationInFlight.current = true;
     setUploadingVideo(true);
 
-    const upload = uploadFileToTempS3(file, 'video');
+    return Promise.resolve().then(() => {
+      const upload = uploadFileToTempS3(file, 'video');
 
-    upload.on('httpUploadProgress', (progress: any) => {
-      console.log(progress);
-    });
-
-    upload.done().then((res: any) => {
-      
-      updateVideo(res.Key).then((res: any) => {
-        const current = userRef.current;
-        const saved = current ? applySavedVideo(current, res) : null;
-
-        if (!current || !saved || saved === current) {
-          alertDialog({
-            title: t("Error"),
-            description: errorMessage(res.message),
-          });
-          return;
-        }
-
-        videoEpoch.current += 1;
-
-        form.setValue('video', saved.candidate_video || "");
-
-        setRecordedChunks([]);
-
-        setProgress(0);
-
-        dispatch(setUser({ user: saved }));
-      }).finally(() => {
-        setUploadingVideo(false);
+      upload.on('httpUploadProgress', (progress: any) => {
+        console.log(progress);
       });
-      
+
+      return upload.done();
+    }).then((res: any) => updateVideo(res.Key)).then((res: any) => {
+      const current = userRef.current;
+      const saved = current ? applySavedVideo(current, res) : null;
+
+      if (!current || !saved || saved === current) {
+        alertDialog({
+          title: t("Error"),
+          description: errorMessage(res.message),
+        });
+        return;
+      }
+
+      videoEpoch.current += 1;
+
+      form.setValue('video', saved.candidate_video || "");
+
+      setRecordedChunks([]);
+
+      setProgress(0);
+
+      dispatch(setUser({ user: saved }));
     }).catch((error) => {
-      // Handle upload error
       console.error('Upload failed:', error);
+    }).finally(() => {
+      videoMutationInFlight.current = false;
       setUploadingVideo(false);
-    })
+    });
   }
 
   /**
@@ -925,7 +927,7 @@ export default function VideoPage() {
 
                 <div className="mt-[16px] block">
                   
-                  { uploadingVideo? <p className="text-[color:var(--Neutral-70,#7D7D8D)] text-sm font-normal leading-5 text-center">{t("Uploading...")}</p> :
+                  { videoBusy? <p className="text-[color:var(--Neutral-70,#7D7D8D)] text-sm font-normal leading-5 text-center">{uploadingVideo ? t("Uploading...") : t("Removing...")}</p> :
                   <>
 
                     <a onClick={() => startCameraInBrowser()} className="cursor-pointer text-[color:var(--Blue-Tint-Main,#4C70F2)]  text-xs font-medium leading-4 ">
@@ -994,7 +996,7 @@ export default function VideoPage() {
                                 tabIndex={4}
                                 className="btn-start-recording  me-4 mb-4"
                                 onClick={() => saveRecording()}
-                                disabled={uploadingVideo}
+                                disabled={videoBusy}
                               >
                                 { uploadingVideo ? <Spinner />: <><SaveIcon /> {t('Save')}</> }
                               </Button>
@@ -1270,6 +1272,7 @@ export default function VideoPage() {
           type="file"
           id="videoUpload"
           className="hidden"
+          disabled={videoBusy}
           ref={videoInput}
           accept={CANDIDATE_VIDEO_ACCEPT}
           onChange={(e) => {

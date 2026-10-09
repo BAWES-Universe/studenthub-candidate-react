@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Provider } from 'react-redux';
@@ -195,4 +195,88 @@ describe('rendered stuck video recovery', () => {
         expect(store.getState().user.user?.candidate_name).toBe('Noura');
         expect(store.getState().user.user?.candidate_email).toBe('noura@example.test');
     }, 10000);
+
+    it('blocks an overlapping video mutation and releases the guard after failure', async () => {
+        store.dispatch(setUser({
+            user: { ...pendingUser, candidate_video_processed: 1 },
+        }));
+        let rejectUpload: (reason?: unknown) => void = () => {};
+        uploadFileToTempS3.mockReturnValue({
+            on: () => undefined,
+            done: () => new Promise((_resolve, reject) => {
+                rejectUpload = reject;
+            }),
+        });
+        const originalSrc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
+        Object.defineProperty(HTMLMediaElement.prototype, 'src', {
+            configurable: true,
+            get() {
+                return originalSrc?.get ? originalSrc.get.call(this) : '';
+            },
+            set(value: string) {
+                if (originalSrc?.set) {
+                    originalSrc.set.call(this, value);
+                }
+                Object.defineProperty(this, 'duration', { configurable: true, value: 10 });
+                queueMicrotask(() => {
+                    if (typeof this.onloadedmetadata === 'function') {
+                        this.onloadedmetadata(new Event('loadedmetadata'));
+                    }
+                });
+            },
+        });
+        if (!URL.createObjectURL) {
+            URL.createObjectURL = () => 'blob:video';
+        }
+
+        try {
+            renderVideoPage();
+            const input = document.getElementById('videoUpload') as HTMLInputElement;
+            const file = new File(['video-bytes'], 'intro.mp4', { type: 'video/mp4' });
+            await act(async () => {
+                fireEvent.change(input, { target: { files: [file] } });
+            });
+            await waitFor(() => expect(uploadFileToTempS3).toHaveBeenCalledTimes(1));
+            expect(screen.getByRole('button', { name: /Remove Intro/i })).toBeDisabled();
+
+            await act(async () => {
+                fireEvent.click(screen.getByRole('button', { name: /Remove Intro/i }));
+                fireEvent.change(input, { target: { files: [file] } });
+            });
+            expect(deleteVideo).not.toHaveBeenCalled();
+            expect(uploadFileToTempS3).toHaveBeenCalledTimes(1);
+            expect(store.getState().user.user?.candidate_video).toBe('stuck-output_1');
+
+            await act(async () => {
+                rejectUpload(new Error('put failed'));
+            });
+            await waitFor(() => {
+                expect(screen.getByRole('button', { name: /Remove Intro/i })).toBeEnabled();
+            });
+
+            uploadFileToTempS3.mockImplementation(() => {
+                throw new Error('presign failed');
+            });
+            await act(async () => {
+                fireEvent.change(input, { target: { files: [file] } });
+            });
+            await waitFor(() => expect(uploadFileToTempS3).toHaveBeenCalledTimes(2));
+            await waitFor(() => {
+                expect(screen.getByRole('button', { name: /Remove Intro/i })).toBeEnabled();
+            });
+
+            deleteVideo.mockResolvedValue({ operation: 'error', message: 'Could not remove video.' });
+            await act(async () => {
+                fireEvent.click(screen.getByRole('button', { name: /Remove Intro/i }));
+            });
+            await waitFor(() => expect(deleteVideo).toHaveBeenCalledTimes(1));
+            expect(screen.getByRole('button', { name: /Remove Intro/i })).toBeEnabled();
+            expect(store.getState().user.user?.candidate_video).toBe('stuck-output_1');
+            expect(store.getState().user.user?.candidate_name).toBe('Noura');
+        } finally {
+            if (originalSrc) {
+                Object.defineProperty(HTMLMediaElement.prototype, 'src', originalSrc);
+            }
+        }
+    });
 });

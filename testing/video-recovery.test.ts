@@ -156,7 +156,7 @@ describe('stuck candidate video recovery', () => {
         expect(page).toContain('applyRemovalResult');
         expect(page).toContain('applyWatchedVideoStatus');
         expect(page).toContain('showsExistingUploadControls');
-        expect(page).toContain('removalInFlight.current');
-        expect(page).toContain('disabled={removingVideo}');
+        expect(page).toContain('videoMutationInFlight.current');
+        expect(page).toContain('disabled={videoBusy}');
     });
 });
