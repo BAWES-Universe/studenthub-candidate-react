@@ -22,6 +22,7 @@ import { page, track } from "@/providers/analytics.service";
 import { alertDialog } from "@/hooks/use-alert-dialog";
 import { useTranslation } from "react-i18next";
 import { candidateVideoProcessed$ } from "@/providers/event.service";
+import { applyRemovalResult, applySavedVideo, applyWatchedVideoStatus, sanitizedVideoRemovalError, showsExistingUploadControls } from "./video-recovery";
 import { setCanGoForward } from "@/store/slices/appSlice";
 import { PlayCircle, SaveIcon, VideoIcon, X } from "lucide-react";
 import Spinner from "@/components/common/spinner";
@@ -77,6 +78,11 @@ export default function VideoPage() {
   const [isSafari, setIsSafari] = useState(false);
  
   const { user } = useAppSelector(state => state.user);
+  const userRef = useRef(user);
+  userRef.current = user;
+  const videoEpoch = useRef(0);
+  const videoMutationInFlight = useRef(false);
+  const videoBusy = removingVideo || uploadingVideo;
   const dispatch = useAppDispatch();
   const router = useIonRouter(); 
   const query = useQuery();
@@ -108,16 +114,22 @@ export default function VideoPage() {
 
     //handle event to mark video processed
 
-    candidateVideoProcessed$.subscribe((data : any) => {
-      if(user) {
-        dispatch(setUser({
-          user: {
-            ...user, 
-            candidate_video: data.candidate_video,
-            candidate_video_processed: data.candidate_video_processed
-          }
-        }));
+    const videoStatusSubscription = candidateVideoProcessed$.subscribe((data : any) => {
+      const current = userRef.current;
+      if (!current || !data?.watch) {
+        return;
       }
+
+      const next = applyWatchedVideoStatus(current, data.status, {
+        ...data.watch,
+        currentEpoch: videoEpoch.current,
+      });
+      if (next === current) {
+        return;
+      }
+
+      form.setValue('video', next.candidate_video || "");
+      dispatch(setUser({ user: next }));
     });
 
     if (navigator.mediaDevices) {
@@ -139,6 +151,7 @@ export default function VideoPage() {
     });
 
     return () => {
+      videoStatusSubscription.unsubscribe();
       track('page_exit', { page: 'Video Page' });
       //window.removeEventListener('onpopstate');
       
@@ -154,22 +167,44 @@ export default function VideoPage() {
   }, []);
 
   useEffect(() => {
-    if (!user?.candidate_video_processed) {
-      
-      const alertSubscription = setInterval(() => {
-        checkVideoStatus().then(res => {
-          if (res.candidate_video_processed) {
-            candidateVideoProcessed$.next(res);
-            clearInterval(alertSubscription);
-          }
-        });
-      }, 3 * 1000);
-
-      return () => {
-        clearInterval(alertSubscription);
-      }
+    const watchedVideo = user?.candidate_video || null;
+    if (!watchedVideo || user?.candidate_video_processed) {
+      return;
     }
-  }, [user]);
+
+    const epoch = videoEpoch.current;
+    let cancelled = false;
+    const alertSubscription = setInterval(() => {
+      checkVideoStatus().then(res => {
+        if (cancelled) {
+          return;
+        }
+
+        const current = userRef.current;
+        if (!current) {
+          return;
+        }
+
+        const watch = {
+          epoch,
+          currentEpoch: videoEpoch.current,
+          watchedVideo,
+        };
+        const next = applyWatchedVideoStatus(current, res, watch);
+        if (next === current) {
+          return;
+        }
+
+        candidateVideoProcessed$.next({ status: res, watch });
+        clearInterval(alertSubscription);
+      }).catch(() => {});
+    }, 3 * 1000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(alertSubscription);
+    }
+  }, [user?.candidate_video, user?.candidate_video_processed]);
 
   useEffect(() => {
     if (!user) {
@@ -234,18 +269,60 @@ export default function VideoPage() {
   }
 
   function removeVideo(){
+    if (videoMutationInFlight.current) {
+      return Promise.resolve();
+    }
+
+    videoMutationInFlight.current = true;
+    const epochAtStart = videoEpoch.current;
+    const videoAtStart = userRef.current?.candidate_video ?? null;
+    videoEpoch.current = epochAtStart + 1;
     setRemovingVideo(true);
 
-    deleteVideo().then(() => {
-      form.setValue('video', "");
+    return deleteVideo().then((res) => {
+      const current = userRef.current;
+      const removalStillCurrent = videoEpoch.current === epochAtStart + 1;
+      const videoStillOriginal = !current?.candidate_video || current.candidate_video === videoAtStart;
+      if (!current || !removalStillCurrent || !videoStillOriginal) {
+        return;
+      }
 
-      dispatch(setUser({ user: {
-        ...user,
-        candidate_video: null
-      } }));
+      const outcome = applyRemovalResult(current, res);
+      if (!outcome.cleared) {
+        videoEpoch.current = epochAtStart;
+        alertDialog({
+          title: t("Error"),
+          description: sanitizedVideoRemovalError(res?.message, t("Could not remove the video. Please try again.")),
+        });
+        return;
+      }
+
+      form.setValue('video', "");
+      dispatch(setUser({ user: outcome.user }));
+    }).catch(() => {
+      if (videoEpoch.current === epochAtStart + 1) {
+        videoEpoch.current = epochAtStart;
+      }
+      alertDialog({
+        title: t("Error"),
+        description: t("Could not remove the video. Please try again."),
+      });
     }).finally(() => {
+      videoMutationInFlight.current = false;
       setRemovingVideo(false);
     });
+  }
+
+  function removeIntroButton() {
+    return (
+      <div className="flex justify-center items-center">
+        <Button variant={ "ghost"} disabled={videoBusy} onClick={() => removeVideo()}
+          className="text-[color:var(--Neutral-70,#7D7D8D)] text-sm font-medium leading-5 text-center m-auto mt-[12px]">
+          <img src="/assets/icons/trash.svg" className="w-[16px]"></img>
+          { removingVideo ? t("Removing...") : t("Remove Intro") }
+        </Button>
+      </div>
+    );
   }
 
   function removeResume(){
@@ -319,7 +396,7 @@ export default function VideoPage() {
     const file = new File([new Blob(recordedChunks, { type: 'video/' + format })], 
       user?.candidate_id + '.' + format);
  
-    uploadVideoFile(file);
+    return uploadVideoFile(file);
   }
 
   function validateVideoFile(file: any) {
@@ -368,8 +445,8 @@ export default function VideoPage() {
       return false;
     }
 
-    validateVideoFile(fileList[0]).then(() => {
-      uploadVideoFile(fileList[0]);
+    return validateVideoFile(fileList[0]).then(() => {
+      return uploadVideoFile(fileList[0]);
     }, err => {
 
       alertDialog({
@@ -380,6 +457,9 @@ export default function VideoPage() {
   }
 
   function uploadVideoFile(file: any) {
+    if (videoMutationInFlight.current) {
+      return Promise.resolve();
+    }
 
     const formatError = candidateUploadError(file, 'video');
     if (formatError) {
@@ -388,50 +468,47 @@ export default function VideoPage() {
         description: formatError
       });
       setUploadingVideo(false);
-      return;
+      return Promise.resolve();
     }
 
+    videoMutationInFlight.current = true;
     setUploadingVideo(true);
 
-    const upload = uploadFileToTempS3(file, 'video');
+    return Promise.resolve().then(() => {
+      const upload = uploadFileToTempS3(file, 'video');
 
-    upload.on('httpUploadProgress', (progress: any) => {
-      console.log(progress);
-    });
-
-    upload.done().then((res: any) => {
-      
-      updateVideo(res.Key).then((res: any) => {
-       
-        if (res.operation == 'success') {   
-
-          form.setValue('video', res.candidate_video);
-
-          setRecordedChunks([]);
-
-          setProgress(0);
-          
-          dispatch(setUser({ user: {
-            ...user,
-            candidate_video: res.candidate_video,
-            candidate_video_processed: res.candidate_video_processed
-          } }));
-
-        } else {
-          alertDialog({
-            title: t("Error"),
-            description: errorMessage(res.message),
-          });
-        }
-      }).finally(() => {
-        setUploadingVideo(false);
+      upload.on('httpUploadProgress', (progress: any) => {
+        console.log(progress);
       });
-      
+
+      return upload.done();
+    }).then((res: any) => updateVideo(res.Key)).then((res: any) => {
+      const current = userRef.current;
+      const saved = current ? applySavedVideo(current, res) : null;
+
+      if (!current || !saved || saved === current) {
+        alertDialog({
+          title: t("Error"),
+          description: errorMessage(res.message),
+        });
+        return;
+      }
+
+      videoEpoch.current += 1;
+
+      form.setValue('video', saved.candidate_video || "");
+
+      setRecordedChunks([]);
+
+      setProgress(0);
+
+      dispatch(setUser({ user: saved }));
     }).catch((error) => {
-      // Handle upload error
       console.error('Upload failed:', error);
+    }).finally(() => {
+      videoMutationInFlight.current = false;
       setUploadingVideo(false);
-    })
+    });
   }
 
   /**
@@ -818,7 +895,7 @@ export default function VideoPage() {
 
        <div suppressHydrationWarning={true} className="flex flex-col md:flex-row max-w-[750px]  min-h-[196px] m-auto mb-[24px]">
             
-            { !form.getValues().video && <div className="relative xs:max-w-full md:max-w-[375px]  flex-none text-center py-[24px] px-[46px] shrink-0 border-[color:var(--Neutral-30,#EEEEF0)] 
+            { showsExistingUploadControls(form.getValues().video) && <div className="relative xs:max-w-full md:max-w-[375px]  flex-none text-center py-[24px] px-[46px] shrink-0 border-[color:var(--Neutral-30,#EEEEF0)] 
                 [background:var(--Neutral-10,#FAFAFA)] rounded-2xl border-[1.333px] border-dashed mb-[24px] md:mb-0 md:me-[24px]">
 
               { shouldStop && recordedChunks.length == 0 && <>
@@ -850,7 +927,7 @@ export default function VideoPage() {
 
                 <div className="mt-[16px] block">
                   
-                  { uploadingVideo? <p className="text-[color:var(--Neutral-70,#7D7D8D)] text-sm font-normal leading-5 text-center">{t("Uploading...")}</p> :
+                  { videoBusy? <p className="text-[color:var(--Neutral-70,#7D7D8D)] text-sm font-normal leading-5 text-center">{uploadingVideo ? t("Uploading...") : t("Removing...")}</p> :
                   <>
 
                     <a onClick={() => startCameraInBrowser()} className="cursor-pointer text-[color:var(--Blue-Tint-Main,#4C70F2)]  text-xs font-medium leading-4 ">
@@ -919,7 +996,7 @@ export default function VideoPage() {
                                 tabIndex={4}
                                 className="btn-start-recording  me-4 mb-4"
                                 onClick={() => saveRecording()}
-                                disabled={uploadingVideo}
+                                disabled={videoBusy}
                               >
                                 { uploadingVideo ? <Spinner />: <><SaveIcon /> {t('Save')}</> }
                               </Button>
@@ -981,6 +1058,8 @@ export default function VideoPage() {
                     <p className={ `self-stretch ${havePermission ? 'text-[#4B4B61]': 'text-red-500'} text-center text-sm font-normal leading-5 mt-[4x] block` }>
                       { t("Our server processing your video, It will be ready soon.") }
                     </p>
+
+                    {removeIntroButton()}
                   </>
                 }
 
@@ -1001,13 +1080,7 @@ export default function VideoPage() {
                           type="video/mp4" /> }
                   </video>
 
-                  <div className="flex justify-center items-center">
-                    <Button variant={ "ghost"} onClick={() => removeVideo()} 
-                      className="text-[color:var(--Neutral-70,#7D7D8D)] text-sm font-medium leading-5 text-center m-auto mt-[12px]">
-                      <img src="/assets/icons/trash.svg" className="w-[16px]"></img>    
-                      { removingVideo ? t("Removing...") : t("Remove Intro") } 
-                    </Button> 
-                  </div>
+                  {removeIntroButton()}
                 </>}
             </div> }
             
@@ -1199,6 +1272,7 @@ export default function VideoPage() {
           type="file"
           id="videoUpload"
           className="hidden"
+          disabled={videoBusy}
           ref={videoInput}
           accept={CANDIDATE_VIDEO_ACCEPT}
           onChange={(e) => {
