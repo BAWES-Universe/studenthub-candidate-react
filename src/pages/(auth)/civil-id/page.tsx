@@ -171,6 +171,22 @@ export default function CivilIdPage() {
           title: t("Error"),
           description: errorMessage(res.message),
         });
+        // Allow back navigation to the profile even after a failed update when the
+        // user came from there (checkbox: back navigation from /civil-id?fromProfile=1
+        // to profile even after partial failure). The error dialog is still shown.
+        if (query.get('fromProfile')) {
+          router.push('/profile');
+        }
+      }
+    }).catch((err: any) => {
+      // Network/HTTP failure on the update call: same partial-failure treatment as
+      // an operation:error response — inform locally, no global /server-error trap.
+      alertDialog({
+        title: t("Error"),
+        description: errorMessage(err?.response?.data?.message) || t("civil_id.update_failed", "Could not save your ID details. Please try again."),
+      });
+      if (query.get('fromProfile')) {
+        router.push('/profile');
       }
     }).finally(() => {
       setLoading(false);
@@ -192,6 +208,14 @@ export default function CivilIdPage() {
         candidate_civil_photo_front: null
       } }));
 
+    }).catch((err: any) => {
+      // Handle the remove-civil-photo error locally (alert dialog) instead of letting
+      // the global error500$ handler route the user to /server-error, losing the
+      // onboarding/profile context (issue #55, candidate app checkbox).
+      alertDialog({
+        title: t("Error"),
+        description: errorMessage(err?.response?.data?.message) || t("civil_id.remove_failed", "Could not remove the Civil ID photo. Please try again."),
+      });
     }).finally(() => {
       setRemovingFrontId(false);
     });
@@ -212,6 +236,14 @@ export default function CivilIdPage() {
         candidate_civil_photo_back: null
       } }));
 
+    }).catch((err: any) => {
+      // Handle the remove-civil-photo error locally (alert dialog) instead of letting
+      // the global error500$ handler route the user to /server-error, losing the
+      // onboarding/profile context (issue #55, candidate app checkbox).
+      alertDialog({
+        title: t("Error"),
+        description: errorMessage(err?.response?.data?.message) || t("civil_id.remove_failed", "Could not remove the Civil ID photo. Please try again."),
+      });
     }).finally(() => {
       setRemovingBackId(false);
     });

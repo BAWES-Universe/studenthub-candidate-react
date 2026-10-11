@@ -54,5 +54,7 @@
     "txt_add_univerity": "No Search results found. Want us to add \"{{ query }}\"?",
     "urgent_bank_detail": "<span class='urgent-txt'>Urgent!</span> We need your bank info",
     "urgent_civil_detail": "<span class='urgent-txt'>Urgent!</span> We need your civil ID info",
-    "more_about_company" : "More about {{value}}"
+    "more_about_company" : "More about {{value}}",
+    "civil_id.remove_failed": "Could not remove the Civil ID photo. Please try again.",
+    "civil_id.update_failed": "Could not save your ID details. Please try again."
 }

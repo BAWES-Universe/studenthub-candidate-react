@@ -83,7 +83,11 @@ export async function handleAxiosError(err: any) {
     // Handle internal server error - 500  
     if (response.status === 500) {
         console.error(JSON.stringify(response));
-        error500$.next({});
+        // Calls that opt out (config._skipGlobal500) handle the error locally
+        // (e.g. civil-id remove flow) to avoid the global /server-error route trap.
+        if (!(response.config as any)?._skipGlobal500) {
+            error500$.next({});
+        }
     //    Router.push('/500');   
     }
 

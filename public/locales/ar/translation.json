@@ -821,5 +821,7 @@
     "Invalid File Format": "تنسيق ملف غير صالح",
     "DNG format is not supported. Please upload a different image format.": "تنسيق DNG غير مدعوم. يرجى تحميل صيغة صورة مختلفة.",
     "File Too Large": "الملف كبير جدًا",
-    "The selected file is too large. Maximum allowed size is 10MB.": "الملف المحدد كبير جدًا. الحد الأقصى المسموح به هو 10 ميجابايت."
+    "The selected file is too large. Maximum allowed size is 10MB.": "الملف المحدد كبير جدًا. الحد الأقصى المسموح به هو 10 ميجابايت.",
+    "civil_id.remove_failed": "تعذر إزالة صورة البطاقة المدنية. يرجى المحاولة مرة أخرى.",
+    "civil_id.update_failed": "تعذر حفظ تفاصيل البطاقة. يرجى المحاولة مرة أخرى."
 }
