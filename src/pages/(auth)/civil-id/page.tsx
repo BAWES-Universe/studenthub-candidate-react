@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { listUpdateRequests, profile, removeCivilPhotoBack, removeCivilPhotoFront, updateCivilIdAndExpiryDate, updateCivilPhotoBack, updateCivilPhotoFront } from "@/providers/logged-in/account.service";
-import { applyCivilRemoval, applyCivilUploadResponse, applyCommittedCivilId, canonicalCivilFormValues, civilPreviewOnError, civilSubmissionPayload, replacePreviewUrl, tokenAfterCivilSave, CivilDraft, CivilStagingToken } from "@/providers/logged-in/civil-id-submission";
+import { applyCivilRemoval, applyCivilUploadResponse, applyCommittedCivilId, canonicalCivilFormValues, civilPreviewOnError, civilSubmissionPayload, replacePreviewUrl, shouldWriteCanonicalCivilUser, tokenAfterCivilSave, CivilDraft, CivilStagingToken } from "@/providers/logged-in/civil-id-submission";
 import { errorMessage, useQuery } from "@/utils/common";
 import { useIonRouter, useIonViewWillEnter } from "@ionic/react";
 import { useAppDispatch, useAppSelector } from "@/store/store";
@@ -378,7 +378,7 @@ export default function CivilIdPage() {
     if (uploadedSide === 'back') {
       setBackPreviewFailed(false);
     }
-    if (!result.staged && !civilRequestPending) {
+    if (shouldWriteCanonicalCivilUser(result.staged, civilRequestPending)) {
       dispatch(setUser({ user: {
         ...user,
         candidate_civil_id: res.candidate_civil_id,

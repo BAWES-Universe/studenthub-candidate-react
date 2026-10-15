@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { activityActionHref, documentRequestActivityNote, isCustomStaffMessage, visibleUpdateNotices } from '../src/providers/logged-in/update-request-notices';
-import { applyCivilRemoval, applyCivilUploadResponse, applyCommittedCivilId, canonicalCivilFormValues, civilPreviewOnError, civilRemovalOutcome, civilSubmissionPayload, rememberCivilStaging, replacePreviewUrl, tokenAfterCivilSave, CivilDraft } from '../src/providers/logged-in/civil-id-submission';
+import { applyCivilRemoval, applyCivilUploadResponse, applyCommittedCivilId, canonicalCivilFormValues, civilPreviewOnError, civilRemovalOutcome, civilSubmissionPayload, rememberCivilStaging, replacePreviewUrl, shouldWriteCanonicalCivilUser, tokenAfterCivilSave, CivilDraft } from '../src/providers/logged-in/civil-id-submission';
 
 describe('update request notices', () => {
     it('shows a photo notice and a civil notice independently', () => {
@@ -258,6 +258,13 @@ describe('update request notices', () => {
             candidate_civil_photo_back: 'new-back.jpg',
             is_incomplete_profile: 0,
         });
+    });
+
+    it('writes the saved Civil ID only when a non-staged upload knows no request is pending', () => {
+        expect(shouldWriteCanonicalCivilUser(false, false)).toBe(true);
+        expect(shouldWriteCanonicalCivilUser(false, null)).toBe(false);
+        expect(shouldWriteCanonicalCivilUser(false, true)).toBe(false);
+        expect(shouldWriteCanonicalCivilUser(true, false)).toBe(false);
     });
 
     it('treats a broken civil preview as presentation only', () => {

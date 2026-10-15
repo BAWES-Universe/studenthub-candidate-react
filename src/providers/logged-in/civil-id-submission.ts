@@ -249,6 +249,17 @@ export function tokenAfterCivilSave(
   return current;
 }
 
+/**
+ * A non-staged upload may replace the saved Civil ID in app state only after
+ * the page knows there is no pending request. Unknown stays false.
+ */
+export function shouldWriteCanonicalCivilUser(
+  staged: boolean,
+  civilRequestPending: boolean | null,
+): boolean {
+  return !staged && civilRequestPending === false;
+}
+
 export function canonicalCivilFormValues(profile: Record<string, any>, bucketUrl: string) {
   const front = profile.candidate_civil_photo_front || '';
   const back = profile.candidate_civil_photo_back || '';
