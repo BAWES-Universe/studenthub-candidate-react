@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { activityActionHref, isCustomStaffMessage, visibleUpdateNotices } from '../src/providers/logged-in/update-request-notices';
-import { applyCommittedCivilId, canonicalCivilFormValues, civilPreviewOnError, rememberCivilStaging, tokenAfterCivilSave } from '../src/providers/logged-in/civil-id-submission';
+import { activityActionHref, documentRequestActivityNote, isCustomStaffMessage, visibleUpdateNotices } from '../src/providers/logged-in/update-request-notices';
+import { applyCommittedCivilId, canonicalCivilFormValues, civilPreviewOnError, civilRemovalOutcome, rememberCivilStaging, replacePreviewUrl, tokenAfterCivilSave } from '../src/providers/logged-in/civil-id-submission';
 
 describe('update request notices', () => {
     it('shows a photo notice and a civil notice independently', () => {
@@ -46,6 +46,53 @@ describe('update request notices', () => {
         });
         expect(staged).toEqual({ update_request_id: 'cur-a', staging_revision: 2 });
         expect(rememberCivilStaging(staged, { candidate_civil_photo_front: 'old-front.jpg' })).toEqual(staged);
+        expect(rememberCivilStaging(staged, { update_request_id: 'cur-a', staging_revision: 1 })).toEqual(staged);
+        expect(rememberCivilStaging(staged, { update_request_id: 'cur-a', staging_revision: 3 })).toEqual({
+            update_request_id: 'cur-a',
+            staging_revision: 3,
+        });
+    });
+
+    it('keeps the civil form when removal fails and stores a successful staged revision', () => {
+        const token = { update_request_id: 'cur-a', staging_revision: 2 };
+        expect(civilRemovalOutcome(token, { operation: 'error', message: 'This Civil ID update is out of date. Refresh the page and submit it again.' })).toEqual({
+            clearForm: false,
+            token,
+            message: 'This Civil ID update is out of date. Refresh the page and submit it again.',
+        });
+        expect(civilRemovalOutcome(token, {
+            operation: 'success',
+            update_request_id: 'cur-a',
+            staging_revision: 3,
+        })).toEqual({
+            clearForm: true,
+            token: { update_request_id: 'cur-a', staging_revision: 3 },
+            message: null,
+        });
+        expect(civilRemovalOutcome(token, { operation: 'success' })).toEqual({
+            clearForm: true,
+            token: null,
+            message: null,
+        });
+    });
+
+    it('revokes only the blob preview that is being replaced', () => {
+        const revoked: string[] = [];
+        const original = URL.revokeObjectURL;
+        URL.revokeObjectURL = (value: string) => {
+            revoked.push(value);
+        };
+        expect(replacePreviewUrl('https://uploads.example/photos/old.jpg', 'blob:next')).toBe('blob:next');
+        expect(replacePreviewUrl('blob:old', 'blob:next')).toBe('blob:next');
+        expect(revoked).toEqual(['blob:old']);
+        URL.revokeObjectURL = original;
+    });
+
+    it('describes a missing document request differently from a submitted one', () => {
+        expect(documentRequestActivityNote('submitted')).toBe('submitted');
+        expect(documentRequestActivityNote('missing')).toBe('unavailable');
+        expect(documentRequestActivityNote(null)).toBe('unavailable');
+        expect(documentRequestActivityNote(undefined)).toBe('unavailable');
     });
 
     it('uses the refetched profile after a civil save and falls back to the save response', () => {

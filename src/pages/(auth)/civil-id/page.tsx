@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { listUpdateRequests, profile, removeCivilPhotoBack, removeCivilPhotoFront, updateCivilIdAndExpiryDate, updateCivilPhotoBack, updateCivilPhotoFront } from "@/providers/logged-in/account.service";
-import { applyCommittedCivilId, canonicalCivilFormValues, civilPreviewOnError, rememberCivilStaging, tokenAfterCivilSave, CivilStagingToken } from "@/providers/logged-in/civil-id-submission";
+import { applyCommittedCivilId, canonicalCivilFormValues, civilPreviewOnError, civilRemovalOutcome, rememberCivilStaging, replacePreviewUrl, tokenAfterCivilSave, CivilStagingToken } from "@/providers/logged-in/civil-id-submission";
 import { errorMessage, useQuery } from "@/utils/common";
 import { useIonRouter, useIonViewWillEnter } from "@ionic/react";
 import { useAppDispatch, useAppSelector } from "@/store/store";
@@ -117,6 +117,13 @@ export default function CivilIdPage() {
   });
 
   useEffect(() => {
+    return () => {
+      replacePreviewUrl(form.getValues('candidate_civil_photo_front_url'), '');
+      replacePreviewUrl(form.getValues('candidate_civil_photo_back_url'), '');
+    };
+  }, [form]);
+
+  useEffect(() => {
     if (!user) {
    //  form.setValue('phone', user?.candidate_phone || "");
     //} else {
@@ -213,10 +220,22 @@ export default function CivilIdPage() {
 
     setRemovingFrontId(true);
 
-    removeCivilPhotoFront().then(() => {
+    removeCivilPhotoFront().then((res) => {
+      const outcome = civilRemovalOutcome(civilSubmission.current, res);
+      if (!outcome.clearForm) {
+        alertDialog({
+          title: t("Error"),
+          description: outcome.message || t("Could not remove the photo. Please try again."),
+        });
+        return;
+      }
+      civilSubmission.current = outcome.token;
       form.setValue('candidate_civil_photo_front', '');
       form.trigger('candidate_civil_photo_front');
-      form.setValue('candidate_civil_photo_front_url', '');
+      form.setValue(
+        'candidate_civil_photo_front_url',
+        replacePreviewUrl(form.getValues('candidate_civil_photo_front_url'), ''),
+      );
       form.trigger('candidate_civil_photo_front_url');
 
       if (civilRequestPending === false) {
@@ -226,6 +245,11 @@ export default function CivilIdPage() {
         } }));
       }
 
+    }).catch(() => {
+      alertDialog({
+        title: t("Error"),
+        description: t("Could not remove the photo. Please try again."),
+      });
     }).finally(() => {
       setRemovingFrontId(false);
     });
@@ -235,10 +259,22 @@ export default function CivilIdPage() {
     
     setRemovingBackId(true);
 
-    removeCivilPhotoBack().then(() => {
+    removeCivilPhotoBack().then((res) => {
+      const outcome = civilRemovalOutcome(civilSubmission.current, res);
+      if (!outcome.clearForm) {
+        alertDialog({
+          title: t("Error"),
+          description: outcome.message || t("Could not remove the photo. Please try again."),
+        });
+        return;
+      }
+      civilSubmission.current = outcome.token;
       form.setValue('candidate_civil_photo_back', '');
       form.trigger('candidate_civil_photo_back');
-      form.setValue('candidate_civil_photo_back_url', '');
+      form.setValue(
+        'candidate_civil_photo_back_url',
+        replacePreviewUrl(form.getValues('candidate_civil_photo_back_url'), ''),
+      );
       form.trigger('candidate_civil_photo_back_url');
 
       if (civilRequestPending === false) {
@@ -248,6 +284,11 @@ export default function CivilIdPage() {
         } }));
       }
 
+    }).catch(() => {
+      alertDialog({
+        title: t("Error"),
+        description: t("Could not remove the photo. Please try again."),
+      });
     }).finally(() => {
       setRemovingBackId(false);
     });
@@ -269,7 +310,10 @@ export default function CivilIdPage() {
       if (res.staged_photo_back) {
         form.setValue('candidate_civil_photo_back', res.staged_photo_back);
         if (uploadedSide === 'back' && file) {
-          form.setValue('candidate_civil_photo_back_url', URL.createObjectURL(file));
+          form.setValue(
+            'candidate_civil_photo_back_url',
+            replacePreviewUrl(form.getValues('candidate_civil_photo_back_url'), URL.createObjectURL(file)),
+          );
         }
         form.trigger('candidate_civil_photo_back_url');
         form.trigger('candidate_civil_photo_back');
@@ -278,7 +322,10 @@ export default function CivilIdPage() {
       if (res.staged_photo_front) {
         form.setValue('candidate_civil_photo_front', res.staged_photo_front);
         if (uploadedSide === 'front' && file) {
-          form.setValue('candidate_civil_photo_front_url', URL.createObjectURL(file));
+          form.setValue(
+            'candidate_civil_photo_front_url',
+            replacePreviewUrl(form.getValues('candidate_civil_photo_front_url'), URL.createObjectURL(file)),
+          );
         }
         form.trigger('candidate_civil_photo_front_url');
         form.trigger('candidate_civil_photo_front');

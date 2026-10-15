@@ -21,11 +21,59 @@ export function rememberCivilStaging(
   if (!Number.isFinite(revision)) {
     return current;
   }
+  if (
+    current
+    && current.update_request_id === response.update_request_id
+    && revision < current.staging_revision
+  ) {
+    return current;
+  }
 
   return {
     update_request_id: response.update_request_id,
     staging_revision: revision,
   };
+}
+
+/**
+ * A failed removal keeps the form and the current revision.
+ * A staged removal stores the new revision. A removal with no pending request clears the token.
+ */
+export function civilRemovalOutcome(
+  current: CivilStagingToken | null,
+  response: {
+    operation?: string;
+    message?: unknown;
+    update_request_id?: unknown;
+    staging_revision?: unknown;
+  } | null | undefined,
+): { clearForm: boolean; token: CivilStagingToken | null; message: string | null } {
+  if (!response || response.operation !== 'success') {
+    const message = response && typeof response.message === 'string' && response.message !== ''
+      ? response.message
+      : 'Could not remove the photo. Please try again.';
+
+    return { clearForm: false, token: current, message };
+  }
+
+  if (typeof response.update_request_id !== 'string' || response.update_request_id === '') {
+    return { clearForm: true, token: null, message: null };
+  }
+
+  return {
+    clearForm: true,
+    token: rememberCivilStaging(current, response),
+    message: null,
+  };
+}
+
+/** Drop a previous blob preview when a new one replaces it. Remote URLs stay untouched. */
+export function replacePreviewUrl(current: string | null | undefined, next: string): string {
+  if (typeof current === 'string' && current.startsWith('blob:') && current !== next) {
+    URL.revokeObjectURL(current);
+  }
+
+  return next;
 }
 
 /**

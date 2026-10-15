@@ -31,3 +31,8 @@ export function activityActionHref(type: number | undefined, status: string | nu
 export function isCustomStaffMessage(type: number | undefined) {
     return type === 14;
 }
+
+/** Submitted is the only status that confirms the document was sent. */
+export function documentRequestActivityNote(status: string | null | undefined): 'submitted' | 'unavailable' {
+    return status === 'submitted' ? 'submitted' : 'unavailable';
+}

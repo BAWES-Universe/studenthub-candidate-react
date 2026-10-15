@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { CandidateNotification } from "@/models/candidate-notification";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 
@@ -6,6 +7,7 @@ export default function StaffMessageNotification({ candidateNotification, onClic
     candidateNotification: CandidateNotification,
     onClick: any
 }) {
+    const { t } = useTranslation();
     const [isNew, setIsNew] = useState(candidateNotification.is_new);
 
     return (
@@ -16,7 +18,7 @@ export default function StaffMessageNotification({ candidateNotification, onClic
             <CardHeader>
                 <CardTitle className="font-bold flex items-center gap-2">
                     {isNew ? <span className="inline-block h-2 w-2 rounded-full bg-red-500" /> : null}
-                    Message from StudentHub
+                    {t('Message from StudentHub')}
                 </CardTitle>
             </CardHeader>
             <CardContent>
