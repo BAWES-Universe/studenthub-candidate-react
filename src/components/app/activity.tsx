@@ -11,6 +11,8 @@ import TransferPaid from "./transfer-paid";
 import TransferUnpaid from "./transfer-unpaid";
 import ApplicationShortlisted from "./application-shortlisted";
 import ApplicationRejected from "./application-rejected";
+import DocumentUpdateNotification from "./document-update-notification";
+import StaffMessageNotification from "./staff-message-notification";
 
 export function Activity({candidateNotification, markRead}: {candidateNotification: CandidateNotification, markRead: any}) {
     return (
@@ -83,6 +85,20 @@ candidateNotification={candidateNotification as any}></WorkHourApproved>: null
     candidateNotification.type == 11 ? <ApplicationRejected 
       onClick={() => markRead(candidateNotification)}
       candidateNotification={candidateNotification as any }></ApplicationRejected>: null
+  }
+
+  {
+    candidateNotification.type == 12 || candidateNotification.type == 13 ? <DocumentUpdateNotification
+      onClick={() => markRead(candidateNotification)}
+      candidateNotification={candidateNotification}
+    ></DocumentUpdateNotification> : null
+  }
+
+  {
+    candidateNotification.type == 14 ? <StaffMessageNotification
+      onClick={() => markRead(candidateNotification)}
+      candidateNotification={candidateNotification}
+    ></StaffMessageNotification> : null
   }
 
   { /*

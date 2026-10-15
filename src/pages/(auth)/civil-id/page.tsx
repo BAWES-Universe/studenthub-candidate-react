@@ -14,10 +14,11 @@ import OnboardFooter from "@/components/on-board/layout/footer";
 import SubmitButton from "@/components/ui/submit-button";
 import { Button } from "@/components/ui/button";
 
-import { Suspense, useEffect, useState } from "react";
-import { profile, removeCivilPhotoBack, removeCivilPhotoFront, updateCivilIdAndExpiryDate, updateCivilPhotoBack, updateCivilPhotoFront } from "@/providers/logged-in/account.service";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { listUpdateRequests, profile, removeCivilPhotoBack, removeCivilPhotoFront, updateCivilIdAndExpiryDate, updateCivilPhotoBack, updateCivilPhotoFront } from "@/providers/logged-in/account.service";
+import { applyCommittedCivilId, canonicalCivilFormValues, civilPreviewOnError, rememberCivilStaging, tokenAfterCivilSave, CivilStagingToken } from "@/providers/logged-in/civil-id-submission";
 import { errorMessage, useQuery } from "@/utils/common";
-import { useIonRouter } from "@ionic/react";
+import { useIonRouter, useIonViewWillEnter } from "@ionic/react";
 import { useAppDispatch, useAppSelector } from "@/store/store";
 import { setUser } from "@/store/slices/userSlice";
 import { uploadFileToTempS3 } from "@/providers/logged-in/aws.service";
@@ -36,6 +37,10 @@ export default function CivilIdPage() {
   const [removingBackId, setRemovingBackId] = useState(false);
   const [uploadingFrontId, setUploadingFrontId] = useState(false);
   const [uploadingBackId, setUploadingBackId] = useState(false);
+  const [civilRequestPending, setCivilRequestPending] = useState<boolean | null>(null);
+  const [frontPreviewFailed, setFrontPreviewFailed] = useState(false);
+  const [backPreviewFailed, setBackPreviewFailed] = useState(false);
+  const civilSubmission = useRef<CivilStagingToken | null>(null);
 
   const { user } = useAppSelector(state => state.user);
 
@@ -46,6 +51,20 @@ export default function CivilIdPage() {
 
   let query = useQuery();
   
+  function loadCivilRequest() {
+    listUpdateRequests().then((response) => {
+      const pending = Array.isArray(response?.requests)
+        && response.requests.some((request: { type?: string }) => request.type === 'civil_id');
+      setCivilRequestPending(pending);
+    }).catch(() => {
+      setCivilRequestPending(null);
+    });
+  }
+
+  useIonViewWillEnter(() => {
+    loadCivilRequest();
+  });
+
   useEffect(() => {
 
     page('Civil ID Page');
@@ -147,16 +166,29 @@ export default function CivilIdPage() {
 
     const date = values.candidate_civil_expiry_date.toISOString();
 
-    updateCivilIdAndExpiryDate(values.candidate_civil_id, date).then((res: any) => {
+    updateCivilIdAndExpiryDate(values.candidate_civil_id, date, civilSubmission.current).then(async (res: any) => {
       if (res.operation == 'success') {
-
-        if (user) {
-          
-          dispatch(setUser({ user: {
-            ...user,
-            candidate_civil_id: values.candidate_civil_id,
-            candidate_civil_expiry_date: date
-          } }));
+        let savedProfile: Record<string, unknown> | null = null;
+        try {
+          savedProfile = await profile();
+        } catch {
+          savedProfile = null;
+        }
+        civilSubmission.current = tokenAfterCivilSave(civilSubmission.current, res);
+        const nextUser = applyCommittedCivilId(user, res, savedProfile);
+        if (nextUser) {
+          dispatch(setUser({ user: nextUser }));
+          const canonical = canonicalCivilFormValues(nextUser, import.meta.env.VITE_PERMANENT_BUCKET_URL);
+          form.setValue('candidate_civil_id', canonical.candidate_civil_id);
+          form.setValue('candidate_civil_photo_front', canonical.candidate_civil_photo_front);
+          form.setValue('candidate_civil_photo_back', canonical.candidate_civil_photo_back);
+          form.setValue('candidate_civil_photo_front_url', canonical.candidate_civil_photo_front_url);
+          form.setValue('candidate_civil_photo_back_url', canonical.candidate_civil_photo_back_url);
+          if (canonical.candidate_civil_expiry_date) {
+            form.setValue('candidate_civil_expiry_date', new Date(canonical.candidate_civil_expiry_date));
+          }
+          setFrontPreviewFailed(false);
+          setBackPreviewFailed(false);
         }
 
         if (query.get('fromProfile')) {
@@ -187,10 +219,12 @@ export default function CivilIdPage() {
       form.setValue('candidate_civil_photo_front_url', '');
       form.trigger('candidate_civil_photo_front_url');
 
-      dispatch(setUser({ user: {
-        ...user,
-        candidate_civil_photo_front: null
-      } }));
+      if (civilRequestPending === false) {
+        dispatch(setUser({ user: {
+          ...user,
+          candidate_civil_photo_front: null
+        } }));
+      }
 
     }).finally(() => {
       setRemovingFrontId(false);
@@ -207,19 +241,61 @@ export default function CivilIdPage() {
       form.setValue('candidate_civil_photo_back_url', '');
       form.trigger('candidate_civil_photo_back_url');
 
-      dispatch(setUser({ user: {
-        ...user,
-        candidate_civil_photo_back: null
-      } }));
+      if (civilRequestPending === false) {
+        dispatch(setUser({ user: {
+          ...user,
+          candidate_civil_photo_back: null
+        } }));
+      }
 
     }).finally(() => {
       setRemovingBackId(false);
     });
   }
 
-  function onCivilIdUploaded(res: any) {
+  function onCivilIdUploaded(res: any, uploadedSide?: 'front' | 'back', file?: File) {
 
-    console.log('onCivilIdUploaded', res); 
+    console.log('onCivilIdUploaded', res);
+    civilSubmission.current = rememberCivilStaging(civilSubmission.current, res);
+    if (uploadedSide === 'front') {
+      setFrontPreviewFailed(false);
+    }
+    if (uploadedSide === 'back') {
+      setBackPreviewFailed(false);
+    }
+
+    const staged = !!(res.staged_photo_front || res.staged_photo_back);
+    if (staged) {
+      if (res.staged_photo_back) {
+        form.setValue('candidate_civil_photo_back', res.staged_photo_back);
+        if (uploadedSide === 'back' && file) {
+          form.setValue('candidate_civil_photo_back_url', URL.createObjectURL(file));
+        }
+        form.trigger('candidate_civil_photo_back_url');
+        form.trigger('candidate_civil_photo_back');
+      }
+
+      if (res.staged_photo_front) {
+        form.setValue('candidate_civil_photo_front', res.staged_photo_front);
+        if (uploadedSide === 'front' && file) {
+          form.setValue('candidate_civil_photo_front_url', URL.createObjectURL(file));
+        }
+        form.trigger('candidate_civil_photo_front_url');
+        form.trigger('candidate_civil_photo_front');
+      }
+
+      if (res.suggested_civil_id) {
+        form.setValue('candidate_civil_id', res.suggested_civil_id);
+        form.trigger('candidate_civil_id');
+      }
+
+      if (res.suggested_civil_expiry_date) {
+        form.setValue('candidate_civil_expiry_date', new Date(res.suggested_civil_expiry_date));
+        form.trigger('candidate_civil_expiry_date');
+      }
+
+      return;
+    }
 
    // if (res.candidate_civil_id && res.candidate_civil_expiry_date) {
 
@@ -250,13 +326,15 @@ export default function CivilIdPage() {
         form.trigger('candidate_civil_expiry_date');
       }
       
-      dispatch(setUser({ user: {
-        ...user,
-        candidate_civil_id: res.candidate_civil_id,
-        candidate_civil_expiry_date: res.candidate_civil_expiry_date,
-        candidate_civil_photo_back: res.candidate_civil_photo_back,
-        candidate_civil_photo_front: res.candidate_civil_photo_front
-      } }));
+      if (!civilRequestPending) {
+        dispatch(setUser({ user: {
+          ...user,
+          candidate_civil_id: res.candidate_civil_id,
+          candidate_civil_expiry_date: res.candidate_civil_expiry_date,
+          candidate_civil_photo_back: res.candidate_civil_photo_back,
+          candidate_civil_photo_front: res.candidate_civil_photo_front
+        } }));
+      }
   
     //if got both values 
     /*
@@ -327,7 +405,7 @@ export default function CivilIdPage() {
                                    
                                   if (res.operation == 'success') {   
 
-                                    onCivilIdUploaded(res);
+                                    onCivilIdUploaded(res, 'front', file);
 
                                   } else {
                                     alertDialog({
@@ -340,9 +418,11 @@ export default function CivilIdPage() {
                                   setUploadingFrontId(false);
                                 }); 
                             }).catch((error) => {
-                                // Handle upload error
                                 console.error('Upload failed:', error);
-
+                                alertDialog({
+                                  title: t("Error"),
+                                  description: error?.message || t("Temporary upload is unavailable."),
+                                });
                                 setUploadingFrontId(false);
                             }).finally(() => {
                               
@@ -360,7 +440,13 @@ export default function CivilIdPage() {
             { form.getValues().candidate_civil_photo_front && <div className="xs:max-w-full w-full sm:max-w-[313px]  flex-none 
                   rounded-2xl mb-[24px] sm:mb-0 sm:me-[24px]">
 
-                <img onError={() => resetFrontId()} src={form.getValues().candidate_civil_photo_front_url || ""} className="w-full"></img>   
+                <img onError={(event) => {
+                  const preview = civilPreviewOnError();
+                  if (preview.showPlaceholder) {
+                    setFrontPreviewFailed(true);
+                  }
+                  event.currentTarget.onerror = null;
+                }} src={frontPreviewFailed ? "/assets/icons/id-front.svg" : (form.getValues().candidate_civil_photo_front_url || "")} className="w-full"></img>   
 
                 <Button variant={"ghost"} disabled={removingFrontId} onClick={resetFrontId} className="text-[color:var(--Neutral-70,#7D7D8D)] text-sm font-medium leading-5 text-center m-auto mt-[12px]">
                     <img src="/assets/icons/trash.svg" className="w-[16px]"></img>  
@@ -415,7 +501,7 @@ export default function CivilIdPage() {
                                    
                                   if (res.operation == 'success') {   
 
-                                    onCivilIdUploaded(res);
+                                    onCivilIdUploaded(res, 'back', file);
 
                                   } else {
                                     alertDialog({
@@ -428,8 +514,11 @@ export default function CivilIdPage() {
                                   setUploadingBackId(false);
                                 }); 
                             }).catch((error) => {
-                                // Handle upload error
                                 console.error('Upload failed:', error);
+                                alertDialog({
+                                  title: t("Error"),
+                                  description: error?.message || t("Temporary upload is unavailable."),
+                                });
                                 setUploadingBackId(false);
                             }).finally(() => {
                               
@@ -446,7 +535,13 @@ export default function CivilIdPage() {
             { form.getValues().candidate_civil_photo_back && <div className="xs:max-w-full sm:max-w-[313px] w-full flex-none 
                   rounded-2xl mb-[24px] sm:mb-0">
 
-                <img onError={() => resetBackId()} src={form.getValues().candidate_civil_photo_back_url || ""} className="w-full"></img>   
+                <img onError={(event) => {
+                  const preview = civilPreviewOnError();
+                  if (preview.showPlaceholder) {
+                    setBackPreviewFailed(true);
+                  }
+                  event.currentTarget.onerror = null;
+                }} src={backPreviewFailed ? "/assets/icons/id-back.svg" : (form.getValues().candidate_civil_photo_back_url || "")} className="w-full"></img>   
 
                 <Button variant={ "ghost"} disabled={removingBackId} onClick={resetBackId} className="text-[color:var(--Neutral-70,#7D7D8D)] text-sm font-medium leading-5 text-center m-auto mt-[12px]">
                     <img src="/assets/icons/trash.svg" className="w-[16px]"></img>    

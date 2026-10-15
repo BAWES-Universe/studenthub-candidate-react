@@ -266,13 +266,16 @@ export default function PersonalPhotoPage() {
 
                         form.setValue('candidate_personal_photo', response.Key);
                         form.trigger('candidate_personal_photo');
-                        form.setValue('candidate_personal_photo_url', response.Location);
+                        form.setValue('candidate_personal_photo_url', URL.createObjectURL(file));
                         form.trigger('candidate_personal_photo_url');
                         setPhotoPreviewFailed(false);
 
                       }).catch((error) => {
-                        // Handle upload error
                         console.error('Upload failed:', error);
+                        alertDialog({
+                          title: t("Error"),
+                          description: error?.message || t("Temporary upload is unavailable."),
+                        });
                       }).finally(() => {
                         setUploading(false);
                       });
