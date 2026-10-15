@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { activityActionHref, documentRequestActivityNote, isCustomStaffMessage, visibleUpdateNotices } from '../src/providers/logged-in/update-request-notices';
-import { applyCommittedCivilId, canonicalCivilFormValues, civilPreviewOnError, civilRemovalOutcome, rememberCivilStaging, replacePreviewUrl, tokenAfterCivilSave } from '../src/providers/logged-in/civil-id-submission';
+import { applyCivilRemoval, applyCivilUploadResponse, applyCommittedCivilId, canonicalCivilFormValues, civilPreviewOnError, civilRemovalOutcome, civilSubmissionPayload, rememberCivilStaging, replacePreviewUrl, tokenAfterCivilSave, CivilDraft } from '../src/providers/logged-in/civil-id-submission';
 
 describe('update request notices', () => {
     it('shows a photo notice and a civil notice independently', () => {
@@ -59,6 +59,7 @@ describe('update request notices', () => {
             clearForm: false,
             token,
             message: 'This Civil ID update is out of date. Refresh the page and submit it again.',
+            ignored: false,
         });
         expect(civilRemovalOutcome(token, {
             operation: 'success',
@@ -68,11 +69,145 @@ describe('update request notices', () => {
             clearForm: true,
             token: { update_request_id: 'cur-a', staging_revision: 3 },
             message: null,
+            ignored: false,
         });
         expect(civilRemovalOutcome(token, { operation: 'success' })).toEqual({
             clearForm: true,
             token: null,
             message: null,
+            ignored: false,
+        });
+        expect(civilRemovalOutcome(token, {
+            operation: 'success',
+            update_request_id: 'cur-a',
+            staging_revision: 1,
+        })).toEqual({
+            clearForm: false,
+            token,
+            message: null,
+            ignored: true,
+        });
+    });
+
+    it('keeps the form and submission payload on the newer upload and removal', () => {
+        const empty: CivilDraft = {
+            token: null,
+            candidate_civil_id: '',
+            candidate_civil_expiry_date: '',
+            candidate_civil_photo_front: '',
+            candidate_civil_photo_back: '',
+            front_preview: '',
+            back_preview: '',
+        };
+        const front = {
+            operation: 'success',
+            update_request_id: 'cur-a',
+            staging_revision: 1,
+            staged_photo_front: 'front-v1.jpg',
+            suggested_civil_id: '200000000009',
+            suggested_civil_expiry_date: '2031-01-01',
+        };
+        const back = {
+            operation: 'success',
+            update_request_id: 'cur-a',
+            staging_revision: 2,
+            staged_photo_front: 'front-v1.jpg',
+            staged_photo_back: 'back-v1.jpg',
+        };
+
+        const frontThenBack = applyCivilUploadResponse(
+            applyCivilUploadResponse(empty, front, { side: 'front', previewUrl: 'blob:front-v1' }).draft,
+            back,
+            { side: 'back', previewUrl: 'blob:back-v1' },
+        );
+        expect(frontThenBack.draft).toMatchObject({
+            token: { update_request_id: 'cur-a', staging_revision: 2 },
+            candidate_civil_photo_front: 'front-v1.jpg',
+            candidate_civil_photo_back: 'back-v1.jpg',
+            candidate_civil_id: '200000000009',
+            candidate_civil_expiry_date: '2031-01-01',
+            front_preview: 'blob:front-v1',
+            back_preview: 'blob:back-v1',
+        });
+        expect(civilSubmissionPayload(frontThenBack.draft)).toEqual({
+            civil_id: '200000000009',
+            civil_expiry_date: '2031-01-01',
+            update_request_id: 'cur-a',
+            staging_revision: 2,
+        });
+
+        const backThenFront = applyCivilUploadResponse(
+            applyCivilUploadResponse(empty, back, { side: 'back', previewUrl: 'blob:back-v1' }).draft,
+            front,
+            { side: 'front', previewUrl: 'blob:front-late' },
+        );
+        expect(backThenFront.accepted).toBe(false);
+        expect(backThenFront.draft).toMatchObject({
+            token: { update_request_id: 'cur-a', staging_revision: 2 },
+            candidate_civil_photo_front: 'front-v1.jpg',
+            candidate_civil_photo_back: 'back-v1.jpg',
+            candidate_civil_id: '',
+            candidate_civil_expiry_date: '',
+            front_preview: '',
+            back_preview: 'blob:back-v1',
+        });
+        expect(civilSubmissionPayload(backThenFront.draft)).toEqual({
+            civil_id: '',
+            civil_expiry_date: '',
+            update_request_id: 'cur-a',
+            staging_revision: 2,
+        });
+
+        const replaced = applyCivilUploadResponse(frontThenBack.draft, {
+            operation: 'success',
+            update_request_id: 'cur-a',
+            staging_revision: 3,
+            staged_photo_front: 'front-v2.jpg',
+            staged_photo_back: 'back-v1.jpg',
+            suggested_civil_id: '200000000010',
+            suggested_civil_expiry_date: '2032-02-02',
+        }, { side: 'front', previewUrl: 'blob:front-v2' });
+        const delayedFront = applyCivilUploadResponse(replaced.draft, front, {
+            side: 'front',
+            previewUrl: 'blob:front-late',
+        });
+        expect(delayedFront.accepted).toBe(false);
+        expect(delayedFront.draft).toMatchObject({
+            candidate_civil_photo_front: 'front-v2.jpg',
+            candidate_civil_photo_back: 'back-v1.jpg',
+            candidate_civil_id: '200000000010',
+            candidate_civil_expiry_date: '2032-02-02',
+            front_preview: 'blob:front-v2',
+            back_preview: 'blob:back-v1',
+        });
+
+        const removed = applyCivilRemoval(delayedFront.draft, {
+            operation: 'success',
+            update_request_id: 'cur-a',
+            staging_revision: 4,
+        }, 'front');
+        const delayedRemoval = applyCivilRemoval(removed.draft, {
+            operation: 'success',
+            update_request_id: 'cur-a',
+            staging_revision: 2,
+        }, 'back');
+        expect(removed.clearForm).toBe(true);
+        expect(delayedRemoval.ignored).toBe(true);
+        expect(delayedRemoval.clearForm).toBe(false);
+        expect(delayedRemoval.draft).toMatchObject({
+            token: { update_request_id: 'cur-a', staging_revision: 4 },
+            candidate_civil_photo_front: '',
+            candidate_civil_photo_back: 'back-v1.jpg',
+            front_preview: '',
+            back_preview: 'blob:back-v1',
+            candidate_civil_id: '200000000010',
+            candidate_civil_expiry_date: '2032-02-02',
+        });
+        expect(civilSubmissionPayload(delayedRemoval.draft)).toEqual({
+            civil_id: '200000000010',
+            civil_expiry_date: '2032-02-02',
+            update_request_id: 'cur-a',
+            staging_revision: 4,
         });
     });
 

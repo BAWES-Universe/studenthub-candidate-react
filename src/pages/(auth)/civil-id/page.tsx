@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { listUpdateRequests, profile, removeCivilPhotoBack, removeCivilPhotoFront, updateCivilIdAndExpiryDate, updateCivilPhotoBack, updateCivilPhotoFront } from "@/providers/logged-in/account.service";
-import { applyCommittedCivilId, canonicalCivilFormValues, civilPreviewOnError, civilRemovalOutcome, rememberCivilStaging, replacePreviewUrl, tokenAfterCivilSave, CivilStagingToken } from "@/providers/logged-in/civil-id-submission";
+import { applyCivilRemoval, applyCivilUploadResponse, applyCommittedCivilId, canonicalCivilFormValues, civilPreviewOnError, civilSubmissionPayload, replacePreviewUrl, tokenAfterCivilSave, CivilDraft, CivilStagingToken } from "@/providers/logged-in/civil-id-submission";
 import { errorMessage, useQuery } from "@/utils/common";
 import { useIonRouter, useIonViewWillEnter } from "@ionic/react";
 import { useAppDispatch, useAppSelector } from "@/store/store";
@@ -167,13 +167,69 @@ export default function CivilIdPage() {
   }, [user]);
 
   // 2. Define a submit handler.
+  function readCivilDraft(): CivilDraft {
+    const expiry = form.getValues('candidate_civil_expiry_date');
+    let expiryText = '';
+    if (expiry instanceof Date && !Number.isNaN(expiry.getTime())) {
+      const month = String(expiry.getMonth() + 1).padStart(2, '0');
+      const day = String(expiry.getDate()).padStart(2, '0');
+      expiryText = `${expiry.getFullYear()}-${month}-${day}`;
+    }
+
+    return {
+      token: civilSubmission.current,
+      candidate_civil_id: form.getValues('candidate_civil_id') || '',
+      candidate_civil_expiry_date: expiryText,
+      candidate_civil_photo_front: form.getValues('candidate_civil_photo_front') || '',
+      candidate_civil_photo_back: form.getValues('candidate_civil_photo_back') || '',
+      front_preview: form.getValues('candidate_civil_photo_front_url') || '',
+      back_preview: form.getValues('candidate_civil_photo_back_url') || '',
+    };
+  }
+
+  function writeCivilDraft(previous: CivilDraft, next: CivilDraft) {
+    civilSubmission.current = next.token;
+    if (next.candidate_civil_photo_front !== previous.candidate_civil_photo_front) {
+      form.setValue('candidate_civil_photo_front', next.candidate_civil_photo_front);
+      form.trigger('candidate_civil_photo_front');
+    }
+    if (next.candidate_civil_photo_back !== previous.candidate_civil_photo_back) {
+      form.setValue('candidate_civil_photo_back', next.candidate_civil_photo_back);
+      form.trigger('candidate_civil_photo_back');
+    }
+    if (next.front_preview !== previous.front_preview) {
+      form.setValue(
+        'candidate_civil_photo_front_url',
+        replacePreviewUrl(previous.front_preview, next.front_preview),
+      );
+      form.trigger('candidate_civil_photo_front_url');
+    }
+    if (next.back_preview !== previous.back_preview) {
+      form.setValue(
+        'candidate_civil_photo_back_url',
+        replacePreviewUrl(previous.back_preview, next.back_preview),
+      );
+      form.trigger('candidate_civil_photo_back_url');
+    }
+    if (next.candidate_civil_id !== previous.candidate_civil_id) {
+      form.setValue('candidate_civil_id', next.candidate_civil_id);
+      form.trigger('candidate_civil_id');
+    }
+    if (next.candidate_civil_expiry_date !== previous.candidate_civil_expiry_date && next.candidate_civil_expiry_date) {
+      form.setValue('candidate_civil_expiry_date', new Date(next.candidate_civil_expiry_date));
+      form.trigger('candidate_civil_expiry_date');
+    }
+  }
+
   function onSubmit(values: z.infer<typeof formSchema>) {
     
     setLoading(true);
 
+    const draft = readCivilDraft();
+    const payload = civilSubmissionPayload(draft);
     const date = values.candidate_civil_expiry_date.toISOString();
 
-    updateCivilIdAndExpiryDate(values.candidate_civil_id, date, civilSubmission.current).then(async (res: any) => {
+    updateCivilIdAndExpiryDate(payload.civil_id, date, draft.token).then(async (res: any) => {
       if (res.operation == 'success') {
         let savedProfile: Record<string, unknown> | null = null;
         try {
@@ -221,7 +277,11 @@ export default function CivilIdPage() {
     setRemovingFrontId(true);
 
     removeCivilPhotoFront().then((res) => {
-      const outcome = civilRemovalOutcome(civilSubmission.current, res);
+      const previous = readCivilDraft();
+      const outcome = applyCivilRemoval(previous, res, 'front');
+      if (outcome.ignored) {
+        return;
+      }
       if (!outcome.clearForm) {
         alertDialog({
           title: t("Error"),
@@ -229,14 +289,7 @@ export default function CivilIdPage() {
         });
         return;
       }
-      civilSubmission.current = outcome.token;
-      form.setValue('candidate_civil_photo_front', '');
-      form.trigger('candidate_civil_photo_front');
-      form.setValue(
-        'candidate_civil_photo_front_url',
-        replacePreviewUrl(form.getValues('candidate_civil_photo_front_url'), ''),
-      );
-      form.trigger('candidate_civil_photo_front_url');
+      writeCivilDraft(previous, outcome.draft);
 
       if (civilRequestPending === false) {
         dispatch(setUser({ user: {
@@ -260,7 +313,11 @@ export default function CivilIdPage() {
     setRemovingBackId(true);
 
     removeCivilPhotoBack().then((res) => {
-      const outcome = civilRemovalOutcome(civilSubmission.current, res);
+      const previous = readCivilDraft();
+      const outcome = applyCivilRemoval(previous, res, 'back');
+      if (outcome.ignored) {
+        return;
+      }
       if (!outcome.clearForm) {
         alertDialog({
           title: t("Error"),
@@ -268,14 +325,7 @@ export default function CivilIdPage() {
         });
         return;
       }
-      civilSubmission.current = outcome.token;
-      form.setValue('candidate_civil_photo_back', '');
-      form.trigger('candidate_civil_photo_back');
-      form.setValue(
-        'candidate_civil_photo_back_url',
-        replacePreviewUrl(form.getValues('candidate_civil_photo_back_url'), ''),
-      );
-      form.trigger('candidate_civil_photo_back_url');
+      writeCivilDraft(previous, outcome.draft);
 
       if (civilRequestPending === false) {
         dispatch(setUser({ user: {
@@ -297,91 +347,46 @@ export default function CivilIdPage() {
   function onCivilIdUploaded(res: any, uploadedSide?: 'front' | 'back', file?: File) {
 
     console.log('onCivilIdUploaded', res);
-    civilSubmission.current = rememberCivilStaging(civilSubmission.current, res);
+    const previous = readCivilDraft();
+    const previewUrl = file && (uploadedSide === 'front' || uploadedSide === 'back')
+      ? URL.createObjectURL(file)
+      : undefined;
+    const result = applyCivilUploadResponse(previous, res, { side: uploadedSide, previewUrl });
+    if (!result.accepted) {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+      return;
+    }
+    if (previewUrl && result.draft.front_preview !== previewUrl && result.draft.back_preview !== previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+
+    const next = result.staged ? result.draft : {
+      ...result.draft,
+      front_preview: res.candidate_civil_photo_front
+        ? import.meta.env.VITE_PERMANENT_BUCKET_URL + 'photos/' + res.candidate_civil_photo_front
+        : result.draft.front_preview,
+      back_preview: res.candidate_civil_photo_back
+        ? import.meta.env.VITE_PERMANENT_BUCKET_URL + 'photos/' + res.candidate_civil_photo_back
+        : result.draft.back_preview,
+    };
+    writeCivilDraft(previous, next);
     if (uploadedSide === 'front') {
       setFrontPreviewFailed(false);
     }
     if (uploadedSide === 'back') {
       setBackPreviewFailed(false);
     }
-
-    const staged = !!(res.staged_photo_front || res.staged_photo_back);
-    if (staged) {
-      if (res.staged_photo_back) {
-        form.setValue('candidate_civil_photo_back', res.staged_photo_back);
-        if (uploadedSide === 'back' && file) {
-          form.setValue(
-            'candidate_civil_photo_back_url',
-            replacePreviewUrl(form.getValues('candidate_civil_photo_back_url'), URL.createObjectURL(file)),
-          );
-        }
-        form.trigger('candidate_civil_photo_back_url');
-        form.trigger('candidate_civil_photo_back');
-      }
-
-      if (res.staged_photo_front) {
-        form.setValue('candidate_civil_photo_front', res.staged_photo_front);
-        if (uploadedSide === 'front' && file) {
-          form.setValue(
-            'candidate_civil_photo_front_url',
-            replacePreviewUrl(form.getValues('candidate_civil_photo_front_url'), URL.createObjectURL(file)),
-          );
-        }
-        form.trigger('candidate_civil_photo_front_url');
-        form.trigger('candidate_civil_photo_front');
-      }
-
-      if (res.suggested_civil_id) {
-        form.setValue('candidate_civil_id', res.suggested_civil_id);
-        form.trigger('candidate_civil_id');
-      }
-
-      if (res.suggested_civil_expiry_date) {
-        form.setValue('candidate_civil_expiry_date', new Date(res.suggested_civil_expiry_date));
-        form.trigger('candidate_civil_expiry_date');
-      }
-
-      return;
+    if (!result.staged && !civilRequestPending) {
+      dispatch(setUser({ user: {
+        ...user,
+        candidate_civil_id: res.candidate_civil_id,
+        candidate_civil_expiry_date: res.candidate_civil_expiry_date,
+        candidate_civil_photo_back: res.candidate_civil_photo_back,
+        candidate_civil_photo_front: res.candidate_civil_photo_front
+      } }));
     }
-
-   // if (res.candidate_civil_id && res.candidate_civil_expiry_date) {
-
-      if (res.candidate_civil_photo_back) {
-
-        form.setValue('candidate_civil_photo_back_url', 
-          import.meta.env.VITE_PERMANENT_BUCKET_URL  + 'photos/' + res.candidate_civil_photo_back);
-        form.setValue('candidate_civil_photo_back', res.candidate_civil_photo_back);
-        form.trigger('candidate_civil_photo_back_url');
-        form.trigger('candidate_civil_photo_back');
-      }
-
-      if (res.candidate_civil_photo_front) {  
-        form.setValue('candidate_civil_photo_front_url', 
-          import.meta.env.VITE_PERMANENT_BUCKET_URL  + 'photos/' + res.candidate_civil_photo_front);
-        form.setValue('candidate_civil_photo_front', res.candidate_civil_photo_front);
-        form.trigger('candidate_civil_photo_front_url');
-        form.trigger('candidate_civil_photo_front');
-      }
-
-      if (res.candidate_civil_id) {
-        form.setValue('candidate_civil_id', res.candidate_civil_id);
-        form.trigger('candidate_civil_id');
-      }
-
-      if (res.candidate_civil_expiry_date) {
-        form.setValue('candidate_civil_expiry_date', new Date(res.candidate_civil_expiry_date));
-        form.trigger('candidate_civil_expiry_date');
-      }
-      
-      if (!civilRequestPending) {
-        dispatch(setUser({ user: {
-          ...user,
-          candidate_civil_id: res.candidate_civil_id,
-          candidate_civil_expiry_date: res.candidate_civil_expiry_date,
-          candidate_civil_photo_back: res.candidate_civil_photo_back,
-          candidate_civil_photo_front: res.candidate_civil_photo_front
-        } }));
-      }
   
     //if got both values 
     /*
