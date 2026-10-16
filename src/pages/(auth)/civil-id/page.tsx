@@ -14,11 +14,10 @@ import OnboardFooter from "@/components/on-board/layout/footer";
 import SubmitButton from "@/components/ui/submit-button";
 import { Button } from "@/components/ui/button";
 
-import { Suspense, useEffect, useRef, useState } from "react";
-import { listUpdateRequests, profile, removeCivilPhotoBack, removeCivilPhotoFront, updateCivilIdAndExpiryDate, updateCivilPhotoBack, updateCivilPhotoFront } from "@/providers/logged-in/account.service";
-import { applyCivilRemoval, applyCivilUploadResponse, applyCommittedCivilId, canonicalCivilFormValues, civilPreviewOnError, civilSubmissionPayload, replacePreviewUrl, shouldWriteCanonicalCivilUser, tokenAfterCivilSave, CivilDraft, CivilStagingToken } from "@/providers/logged-in/civil-id-submission";
+import { Suspense, useEffect, useState } from "react";
+import { profile, removeCivilPhotoBack, removeCivilPhotoFront, updateCivilIdAndExpiryDate, updateCivilPhotoBack, updateCivilPhotoFront } from "@/providers/logged-in/account.service";
 import { errorMessage, useQuery } from "@/utils/common";
-import { useIonRouter, useIonViewWillEnter } from "@ionic/react";
+import { useIonRouter } from "@ionic/react";
 import { useAppDispatch, useAppSelector } from "@/store/store";
 import { setUser } from "@/store/slices/userSlice";
 import { uploadFileToTempS3 } from "@/providers/logged-in/aws.service";
@@ -37,10 +36,6 @@ export default function CivilIdPage() {
   const [removingBackId, setRemovingBackId] = useState(false);
   const [uploadingFrontId, setUploadingFrontId] = useState(false);
   const [uploadingBackId, setUploadingBackId] = useState(false);
-  const [civilRequestPending, setCivilRequestPending] = useState<boolean | null>(null);
-  const [frontPreviewFailed, setFrontPreviewFailed] = useState(false);
-  const [backPreviewFailed, setBackPreviewFailed] = useState(false);
-  const civilSubmission = useRef<CivilStagingToken | null>(null);
 
   const { user } = useAppSelector(state => state.user);
 
@@ -51,20 +46,6 @@ export default function CivilIdPage() {
 
   let query = useQuery();
   
-  function loadCivilRequest() {
-    listUpdateRequests().then((response) => {
-      const pending = Array.isArray(response?.requests)
-        && response.requests.some((request: { type?: string }) => request.type === 'civil_id');
-      setCivilRequestPending(pending);
-    }).catch(() => {
-      setCivilRequestPending(null);
-    });
-  }
-
-  useIonViewWillEnter(() => {
-    loadCivilRequest();
-  });
-
   useEffect(() => {
 
     page('Civil ID Page');
@@ -117,13 +98,6 @@ export default function CivilIdPage() {
   });
 
   useEffect(() => {
-    return () => {
-      replacePreviewUrl(form.getValues('candidate_civil_photo_front_url'), '');
-      replacePreviewUrl(form.getValues('candidate_civil_photo_back_url'), '');
-    };
-  }, [form]);
-
-  useEffect(() => {
     if (!user) {
    //  form.setValue('phone', user?.candidate_phone || "");
     //} else {
@@ -167,91 +141,22 @@ export default function CivilIdPage() {
   }, [user]);
 
   // 2. Define a submit handler.
-  function readCivilDraft(): CivilDraft {
-    const expiry = form.getValues('candidate_civil_expiry_date');
-    let expiryText = '';
-    if (expiry instanceof Date && !Number.isNaN(expiry.getTime())) {
-      const month = String(expiry.getMonth() + 1).padStart(2, '0');
-      const day = String(expiry.getDate()).padStart(2, '0');
-      expiryText = `${expiry.getFullYear()}-${month}-${day}`;
-    }
-
-    return {
-      token: civilSubmission.current,
-      candidate_civil_id: form.getValues('candidate_civil_id') || '',
-      candidate_civil_expiry_date: expiryText,
-      candidate_civil_photo_front: form.getValues('candidate_civil_photo_front') || '',
-      candidate_civil_photo_back: form.getValues('candidate_civil_photo_back') || '',
-      front_preview: form.getValues('candidate_civil_photo_front_url') || '',
-      back_preview: form.getValues('candidate_civil_photo_back_url') || '',
-    };
-  }
-
-  function writeCivilDraft(previous: CivilDraft, next: CivilDraft) {
-    civilSubmission.current = next.token;
-    if (next.candidate_civil_photo_front !== previous.candidate_civil_photo_front) {
-      form.setValue('candidate_civil_photo_front', next.candidate_civil_photo_front);
-      form.trigger('candidate_civil_photo_front');
-    }
-    if (next.candidate_civil_photo_back !== previous.candidate_civil_photo_back) {
-      form.setValue('candidate_civil_photo_back', next.candidate_civil_photo_back);
-      form.trigger('candidate_civil_photo_back');
-    }
-    if (next.front_preview !== previous.front_preview) {
-      form.setValue(
-        'candidate_civil_photo_front_url',
-        replacePreviewUrl(previous.front_preview, next.front_preview),
-      );
-      form.trigger('candidate_civil_photo_front_url');
-    }
-    if (next.back_preview !== previous.back_preview) {
-      form.setValue(
-        'candidate_civil_photo_back_url',
-        replacePreviewUrl(previous.back_preview, next.back_preview),
-      );
-      form.trigger('candidate_civil_photo_back_url');
-    }
-    if (next.candidate_civil_id !== previous.candidate_civil_id) {
-      form.setValue('candidate_civil_id', next.candidate_civil_id);
-      form.trigger('candidate_civil_id');
-    }
-    if (next.candidate_civil_expiry_date !== previous.candidate_civil_expiry_date && next.candidate_civil_expiry_date) {
-      form.setValue('candidate_civil_expiry_date', new Date(next.candidate_civil_expiry_date));
-      form.trigger('candidate_civil_expiry_date');
-    }
-  }
-
   function onSubmit(values: z.infer<typeof formSchema>) {
     
     setLoading(true);
 
-    const draft = readCivilDraft();
-    const payload = civilSubmissionPayload(draft);
     const date = values.candidate_civil_expiry_date.toISOString();
 
-    updateCivilIdAndExpiryDate(payload.civil_id, date, draft.token).then(async (res: any) => {
+    updateCivilIdAndExpiryDate(values.candidate_civil_id, date).then((res: any) => {
       if (res.operation == 'success') {
-        let savedProfile: Record<string, unknown> | null = null;
-        try {
-          savedProfile = await profile();
-        } catch {
-          savedProfile = null;
-        }
-        civilSubmission.current = tokenAfterCivilSave(civilSubmission.current, res);
-        const nextUser = applyCommittedCivilId(user, res, savedProfile);
-        if (nextUser) {
-          dispatch(setUser({ user: nextUser }));
-          const canonical = canonicalCivilFormValues(nextUser, import.meta.env.VITE_PERMANENT_BUCKET_URL);
-          form.setValue('candidate_civil_id', canonical.candidate_civil_id);
-          form.setValue('candidate_civil_photo_front', canonical.candidate_civil_photo_front);
-          form.setValue('candidate_civil_photo_back', canonical.candidate_civil_photo_back);
-          form.setValue('candidate_civil_photo_front_url', canonical.candidate_civil_photo_front_url);
-          form.setValue('candidate_civil_photo_back_url', canonical.candidate_civil_photo_back_url);
-          if (canonical.candidate_civil_expiry_date) {
-            form.setValue('candidate_civil_expiry_date', new Date(canonical.candidate_civil_expiry_date));
-          }
-          setFrontPreviewFailed(false);
-          setBackPreviewFailed(false);
+
+        if (user) {
+          
+          dispatch(setUser({ user: {
+            ...user,
+            candidate_civil_id: values.candidate_civil_id,
+            candidate_civil_expiry_date: date
+          } }));
         }
 
         if (query.get('fromProfile')) {
@@ -276,33 +181,17 @@ export default function CivilIdPage() {
 
     setRemovingFrontId(true);
 
-    removeCivilPhotoFront().then((res) => {
-      const previous = readCivilDraft();
-      const outcome = applyCivilRemoval(previous, res, 'front');
-      if (outcome.ignored) {
-        return;
-      }
-      if (!outcome.clearForm) {
-        alertDialog({
-          title: t("Error"),
-          description: outcome.message || t("Could not remove the photo. Please try again."),
-        });
-        return;
-      }
-      writeCivilDraft(previous, outcome.draft);
+    removeCivilPhotoFront().then(() => {
+      form.setValue('candidate_civil_photo_front', '');
+      form.trigger('candidate_civil_photo_front');
+      form.setValue('candidate_civil_photo_front_url', '');
+      form.trigger('candidate_civil_photo_front_url');
 
-      if (civilRequestPending === false) {
-        dispatch(setUser({ user: {
-          ...user,
-          candidate_civil_photo_front: null
-        } }));
-      }
+      dispatch(setUser({ user: {
+        ...user,
+        candidate_civil_photo_front: null
+      } }));
 
-    }).catch(() => {
-      alertDialog({
-        title: t("Error"),
-        description: t("Could not remove the photo. Please try again."),
-      });
     }).finally(() => {
       setRemovingFrontId(false);
     });
@@ -312,73 +201,55 @@ export default function CivilIdPage() {
     
     setRemovingBackId(true);
 
-    removeCivilPhotoBack().then((res) => {
-      const previous = readCivilDraft();
-      const outcome = applyCivilRemoval(previous, res, 'back');
-      if (outcome.ignored) {
-        return;
-      }
-      if (!outcome.clearForm) {
-        alertDialog({
-          title: t("Error"),
-          description: outcome.message || t("Could not remove the photo. Please try again."),
-        });
-        return;
-      }
-      writeCivilDraft(previous, outcome.draft);
+    removeCivilPhotoBack().then(() => {
+      form.setValue('candidate_civil_photo_back', '');
+      form.trigger('candidate_civil_photo_back');
+      form.setValue('candidate_civil_photo_back_url', '');
+      form.trigger('candidate_civil_photo_back_url');
 
-      if (civilRequestPending === false) {
-        dispatch(setUser({ user: {
-          ...user,
-          candidate_civil_photo_back: null
-        } }));
-      }
+      dispatch(setUser({ user: {
+        ...user,
+        candidate_civil_photo_back: null
+      } }));
 
-    }).catch(() => {
-      alertDialog({
-        title: t("Error"),
-        description: t("Could not remove the photo. Please try again."),
-      });
     }).finally(() => {
       setRemovingBackId(false);
     });
   }
 
-  function onCivilIdUploaded(res: any, uploadedSide?: 'front' | 'back', file?: File) {
+  function onCivilIdUploaded(res: any) {
 
-    console.log('onCivilIdUploaded', res);
-    const previous = readCivilDraft();
-    const previewUrl = file && (uploadedSide === 'front' || uploadedSide === 'back')
-      ? URL.createObjectURL(file)
-      : undefined;
-    const result = applyCivilUploadResponse(previous, res, { side: uploadedSide, previewUrl });
-    if (!result.accepted) {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
+    console.log('onCivilIdUploaded', res); 
+
+   // if (res.candidate_civil_id && res.candidate_civil_expiry_date) {
+
+      if (res.candidate_civil_photo_back) {
+
+        form.setValue('candidate_civil_photo_back_url', 
+          import.meta.env.VITE_PERMANENT_BUCKET_URL  + 'photos/' + res.candidate_civil_photo_back);
+        form.setValue('candidate_civil_photo_back', res.candidate_civil_photo_back);
+        form.trigger('candidate_civil_photo_back_url');
+        form.trigger('candidate_civil_photo_back');
       }
-      return;
-    }
-    if (previewUrl && result.draft.front_preview !== previewUrl && result.draft.back_preview !== previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-    }
 
-    const next = result.staged ? result.draft : {
-      ...result.draft,
-      front_preview: res.candidate_civil_photo_front
-        ? import.meta.env.VITE_PERMANENT_BUCKET_URL + 'photos/' + res.candidate_civil_photo_front
-        : result.draft.front_preview,
-      back_preview: res.candidate_civil_photo_back
-        ? import.meta.env.VITE_PERMANENT_BUCKET_URL + 'photos/' + res.candidate_civil_photo_back
-        : result.draft.back_preview,
-    };
-    writeCivilDraft(previous, next);
-    if (uploadedSide === 'front') {
-      setFrontPreviewFailed(false);
-    }
-    if (uploadedSide === 'back') {
-      setBackPreviewFailed(false);
-    }
-    if (shouldWriteCanonicalCivilUser(result.staged, civilRequestPending)) {
+      if (res.candidate_civil_photo_front) {  
+        form.setValue('candidate_civil_photo_front_url', 
+          import.meta.env.VITE_PERMANENT_BUCKET_URL  + 'photos/' + res.candidate_civil_photo_front);
+        form.setValue('candidate_civil_photo_front', res.candidate_civil_photo_front);
+        form.trigger('candidate_civil_photo_front_url');
+        form.trigger('candidate_civil_photo_front');
+      }
+
+      if (res.candidate_civil_id) {
+        form.setValue('candidate_civil_id', res.candidate_civil_id);
+        form.trigger('candidate_civil_id');
+      }
+
+      if (res.candidate_civil_expiry_date) {
+        form.setValue('candidate_civil_expiry_date', new Date(res.candidate_civil_expiry_date));
+        form.trigger('candidate_civil_expiry_date');
+      }
+      
       dispatch(setUser({ user: {
         ...user,
         candidate_civil_id: res.candidate_civil_id,
@@ -386,7 +257,6 @@ export default function CivilIdPage() {
         candidate_civil_photo_back: res.candidate_civil_photo_back,
         candidate_civil_photo_front: res.candidate_civil_photo_front
       } }));
-    }
   
     //if got both values 
     /*
@@ -457,7 +327,7 @@ export default function CivilIdPage() {
                                    
                                   if (res.operation == 'success') {   
 
-                                    onCivilIdUploaded(res, 'front', file);
+                                    onCivilIdUploaded(res);
 
                                   } else {
                                     alertDialog({
@@ -470,11 +340,9 @@ export default function CivilIdPage() {
                                   setUploadingFrontId(false);
                                 }); 
                             }).catch((error) => {
+                                // Handle upload error
                                 console.error('Upload failed:', error);
-                                alertDialog({
-                                  title: t("Error"),
-                                  description: error?.message || t("Temporary upload is unavailable."),
-                                });
+
                                 setUploadingFrontId(false);
                             }).finally(() => {
                               
@@ -492,13 +360,7 @@ export default function CivilIdPage() {
             { form.getValues().candidate_civil_photo_front && <div className="xs:max-w-full w-full sm:max-w-[313px]  flex-none 
                   rounded-2xl mb-[24px] sm:mb-0 sm:me-[24px]">
 
-                <img onError={(event) => {
-                  const preview = civilPreviewOnError();
-                  if (preview.showPlaceholder) {
-                    setFrontPreviewFailed(true);
-                  }
-                  event.currentTarget.onerror = null;
-                }} src={frontPreviewFailed ? "/assets/icons/id-front.svg" : (form.getValues().candidate_civil_photo_front_url || "")} className="w-full"></img>   
+                <img onError={() => resetFrontId()} src={form.getValues().candidate_civil_photo_front_url || ""} className="w-full"></img>   
 
                 <Button variant={"ghost"} disabled={removingFrontId} onClick={resetFrontId} className="text-[color:var(--Neutral-70,#7D7D8D)] text-sm font-medium leading-5 text-center m-auto mt-[12px]">
                     <img src="/assets/icons/trash.svg" className="w-[16px]"></img>  
@@ -553,7 +415,7 @@ export default function CivilIdPage() {
                                    
                                   if (res.operation == 'success') {   
 
-                                    onCivilIdUploaded(res, 'back', file);
+                                    onCivilIdUploaded(res);
 
                                   } else {
                                     alertDialog({
@@ -566,11 +428,8 @@ export default function CivilIdPage() {
                                   setUploadingBackId(false);
                                 }); 
                             }).catch((error) => {
+                                // Handle upload error
                                 console.error('Upload failed:', error);
-                                alertDialog({
-                                  title: t("Error"),
-                                  description: error?.message || t("Temporary upload is unavailable."),
-                                });
                                 setUploadingBackId(false);
                             }).finally(() => {
                               
@@ -587,13 +446,7 @@ export default function CivilIdPage() {
             { form.getValues().candidate_civil_photo_back && <div className="xs:max-w-full sm:max-w-[313px] w-full flex-none 
                   rounded-2xl mb-[24px] sm:mb-0">
 
-                <img onError={(event) => {
-                  const preview = civilPreviewOnError();
-                  if (preview.showPlaceholder) {
-                    setBackPreviewFailed(true);
-                  }
-                  event.currentTarget.onerror = null;
-                }} src={backPreviewFailed ? "/assets/icons/id-back.svg" : (form.getValues().candidate_civil_photo_back_url || "")} className="w-full"></img>   
+                <img onError={() => resetBackId()} src={form.getValues().candidate_civil_photo_back_url || ""} className="w-full"></img>   
 
                 <Button variant={ "ghost"} disabled={removingBackId} onClick={resetBackId} className="text-[color:var(--Neutral-70,#7D7D8D)] text-sm font-medium leading-5 text-center m-auto mt-[12px]">
                     <img src="/assets/icons/trash.svg" className="w-[16px]"></img>    

@@ -264,16 +264,7 @@ export function startCandidateUpload(options: CandidateUploadDependencies): Cand
             }),
         }).then(async (response) => {
             if (!response.ok) {
-                let message = UNAVAILABLE;
-                try {
-                    const problem = await response.json() as { message?: string };
-                    if (problem && typeof problem.message === 'string' && problem.message !== '') {
-                        message = problem.message;
-                    }
-                } catch (err) {
-                    message = UNAVAILABLE;
-                }
-                throw new Error(message);
+                throw new Error(UNAVAILABLE);
             }
             const body = await response.json() as PresignResponse;
             if (!isPresignedPut(body)) {
@@ -304,7 +295,7 @@ export function startCandidateUpload(options: CandidateUploadDependencies): Cand
             xhr.onerror = () => reject(new Error(FAILED));
             xhr.send(options.file);
         }).catch((err: unknown) => {
-            if (err instanceof Error && err.message) {
+            if (err instanceof Error && (err.message === UNAVAILABLE || err.message === FAILED)) {
                 reject(err);
                 return;
             }

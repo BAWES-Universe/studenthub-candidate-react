@@ -20,7 +20,6 @@ import { setUser } from "@/store/slices/userSlice";
 import { uploadFileToTempS3 } from "@/providers/logged-in/aws.service";
 import { CANDIDATE_IMAGE_ACCEPT, candidateUploadError } from "@/providers/logged-in/temp-upload";
 import { personalPhotoSrc, retainPhotoKeyAfterLoadError } from "@/providers/logged-in/profile-photo-display";
-import { replacePreviewUrl } from "@/providers/logged-in/civil-id-submission";
 import { useMissingPersonalPhotoUrlRefresh } from "@/providers/logged-in/personal-photo-url-refresh";
 import { page, track } from "@/providers/analytics.service";
 import { alertDialog } from "@/hooks/use-alert-dialog";
@@ -75,7 +74,6 @@ export default function PersonalPhotoPage() {
       //router.prefetch('/about-yourself');*/
 
     return () => {
-        replacePreviewUrl(form.getValues('candidate_personal_photo_url'), '');
         track('page_exit', { page: 'Personal Photo Page' });
     }
   }, []);
@@ -268,19 +266,13 @@ export default function PersonalPhotoPage() {
 
                         form.setValue('candidate_personal_photo', response.Key);
                         form.trigger('candidate_personal_photo');
-                        form.setValue(
-                          'candidate_personal_photo_url',
-                          replacePreviewUrl(form.getValues('candidate_personal_photo_url'), URL.createObjectURL(file)),
-                        );
+                        form.setValue('candidate_personal_photo_url', response.Location);
                         form.trigger('candidate_personal_photo_url');
                         setPhotoPreviewFailed(false);
 
                       }).catch((error) => {
+                        // Handle upload error
                         console.error('Upload failed:', error);
-                        alertDialog({
-                          title: t("Error"),
-                          description: error?.message || t("Temporary upload is unavailable."),
-                        });
                       }).finally(() => {
                         setUploading(false);
                       });

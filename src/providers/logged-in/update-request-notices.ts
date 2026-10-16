@@ -1,22 +1,18 @@
-export type UpdateRequestNotice = {
-    type?: string;
-    requested_at?: string;
+export type ActivityNotice = {
+    type?: number;
+    is_new?: boolean;
 };
 
-export function visibleUpdateNotices(requests: UpdateRequestNotice[] | null | undefined) {
-    const list = Array.isArray(requests) ? requests : [];
+export function visibleDocumentReminders(notifications: ActivityNotice[] | null | undefined) {
+    const list = Array.isArray(notifications) ? notifications : [];
 
     return {
-        photo: list.some((request) => request.type === 'profile_photo'),
-        civil: list.some((request) => request.type === 'civil_id'),
+        photo: list.some((notification) => notification.type === 12 && notification.is_new === true),
+        civil: list.some((notification) => notification.type === 13 && notification.is_new === true),
     };
 }
 
-export function activityActionHref(type: number | undefined, status: string | null | undefined): string | null {
-    if (status !== 'pending') {
-        return null;
-    }
-
+export function activityActionHref(type: number | undefined): string | null {
     if (type === 12) {
         return '/personal-photo?fromProfile=1';
     }
@@ -30,9 +26,4 @@ export function activityActionHref(type: number | undefined, status: string | nu
 
 export function isCustomStaffMessage(type: number | undefined) {
     return type === 14;
-}
-
-/** Submitted is the only status that confirms the document was sent. */
-export function documentRequestActivityNote(status: string | null | undefined): 'submitted' | 'unavailable' {
-    return status === 'submitted' ? 'submitted' : 'unavailable';
 }

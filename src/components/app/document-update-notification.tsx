@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { CandidateNotification } from '@/models/candidate-notification';
 import { dateTimeFormat } from '@/utils/common';
-import { activityActionHref, documentRequestActivityNote } from '@/providers/logged-in/update-request-notices';
+import { activityActionHref } from '@/providers/logged-in/update-request-notices';
 
 export default function DocumentUpdateNotification({
     candidateNotification,
@@ -14,7 +14,7 @@ export default function DocumentUpdateNotification({
 }) {
     const { t } = useTranslation();
     const [isNew, setIsNew] = useState(candidateNotification.is_new);
-    const href = activityActionHref(candidateNotification.type, candidateNotification.update_request_status);
+    const href = activityActionHref(candidateNotification.type);
     const title = candidateNotification.type === 12
         ? t('Please upload a new profile photo.')
         : t('Please update your Civil ID.');
@@ -32,13 +32,7 @@ export default function DocumentUpdateNotification({
                 <Link to={href} className="text-sm text-[#4C70F2]">
                     {candidateNotification.type === 12 ? t('Update profile photo') : t('Update Civil ID')}
                 </Link>
-            ) : (
-                <p className="text-gray-600 text-sm leading-4 m-0">
-                    {documentRequestActivityNote(candidateNotification.update_request_status) === 'submitted'
-                        ? t('This request has been submitted.')
-                        : t('This request is no longer available.')}
-                </p>
-            )}
+            ) : null}
             <p className="txt-time text-end text-gray-500 text-xs leading-4 m-0">
                 {candidateNotification.created_at ? dateTimeFormat(candidateNotification.created_at, 'MMM d') : ''}
             </p>

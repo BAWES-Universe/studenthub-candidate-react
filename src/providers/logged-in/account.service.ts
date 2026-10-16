@@ -10,11 +10,6 @@ const _accountEndpoint = '/account';
  * @returns Candidate
  * load profile details
  */
-export async function listUpdateRequests(): Promise<any> {
-  const response = await axios.get(_accountEndpoint + '/update-requests');
-  return response.data;
-}
-
 export async function profile(): Promise<any> {
   const url = _accountEndpoint + '/profile?expand=candidateLinks,certificates,certificates.exam,certificates.store,certificates.company,candidateTags,' +
     'candidateEducations,candidateEducations.major,candidateEducations.university,' +
@@ -300,19 +295,11 @@ export async function updateCivilId(civil_id: string): Promise<any> {
  * @param civil_id
  * @param civil_expiry_date
  */
-export async function updateCivilIdAndExpiryDate(
-  civil_id: string,
-  civil_expiry_date: string = "",
-  updateRequest?: { update_request_id: string; staging_revision: number } | null,
-): Promise<any> {
+export async function updateCivilIdAndExpiryDate(civil_id: string, civil_expiry_date: string = ""): Promise<any> {
   const url = `${_accountEndpoint}` + '/update-civil-id-expiry-date';
   const response = await axios.post(url, {
     civil_id: civil_id,
-    civil_expiry_date: civil_expiry_date,
-    ...(updateRequest ? {
-      update_request_id: updateRequest.update_request_id,
-      staging_revision: updateRequest.staging_revision,
-    } : {}),
+    civil_expiry_date: civil_expiry_date
   });
   return response.data;
 }

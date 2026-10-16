@@ -33,7 +33,6 @@ export class CandidateNotification {
     store_id?: number; 
     tc_id?: number;
     is_new?: boolean;
-    update_request_status?: 'pending' | 'submitted' | 'missing' | null;
     staff_id?: number;
     message?: string;
     created_at!: string;
