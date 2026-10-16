@@ -4,6 +4,7 @@ import { CertificateComponent } from '@/components/app/profile/certificate';
 import { Education } from '@/components/app/profile/education';
 import { Experience } from '@/components/app/profile/experience';
 import { Name } from '@/components/app/profile/name';
+import { UpdateRequestNotices } from '@/components/app/update-request-notices';
 import { PersonalDdetail } from '@/components/app/profile/personal-detail';
 import { Segments } from '@/components/app/profile/segments';
 import { WorkHistoryComponent } from '@/components/app/profile/work-history';
@@ -21,7 +22,7 @@ import { setUser } from '@/store/slices/userSlice';
 import { useAppDispatch } from '@/store/store';
 import { useAppSelector } from '@/store/store';
 import { Ribbon } from 'lucide-react';
-import { useIonRouter } from '@ionic/react';    
+import { useIonRouter, useIonViewWillEnter } from '@ionic/react';    
 import { Suspense, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Loading from './loading';
@@ -40,6 +41,7 @@ const ProfilePage = () => {
     const [loading, setLoading] = useState(false);
     const [segment, setSegment] = useState("work-details");
     const [open, setOpen] = useState(false);
+    const [noticeReload, setNoticeReload] = useState(0);
     const [workHistories, setWorkHistories] = useState<CandidateWorkHistory[]>([]);
     const [currentAssignments, setCurrentAssignments] = useState<CandidateWorkHistory[]>([]);   
     const { user } = useAppSelector(state => state.user) as { user: Candidate };
@@ -53,6 +55,10 @@ const ProfilePage = () => {
     ];
 
     const {t} = useTranslation();
+
+    useIonViewWillEnter(() => {
+        setNoticeReload((value) => value + 1);
+    });
 
     useEffect(() => {
         page('Profile Page');
@@ -143,6 +149,9 @@ const ProfilePage = () => {
                     <div className=' bg-white'>
                         <div className="max-w-4xl mx-auto px-6 shadow-[0px_10px_20px_0px_rgba(0,0,0,0.05)">
                             <Name />
+                            <div className="pb-4">
+                                <UpdateRequestNotices reloadToken={noticeReload} />
+                            </div>
                             <Segments segments={segments} onChange={(segment) => setSegment(segment)} segment={segment} />
                         </div>    
                     </div>

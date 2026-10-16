@@ -2,10 +2,11 @@
 // app/(dash)/dashboard/DashboardPage.jsx
 
 import { useEffect, useState } from 'react';
-import { useIonRouter } from '@ionic/react';
+import { useIonRouter, useIonViewWillEnter } from '@ionic/react';
 import { getNextRouteToCompleteProfile, profile } from '@/providers/logged-in/account.service';
 //import { workHistory } from '@/providers/logged-in/candidate.service';
 import AccountStatus from '@/components/app/account-status';
+import { UpdateRequestNotices } from '@/components/app/update-request-notices';
 import { useAppDispatch, useAppSelector } from '@/store/store';
 import { CandidateWorkHistory } from '@/models/candidate-work-history';
 import { listWorkHistory } from '@/providers/logged-in/candidate.service';
@@ -27,6 +28,7 @@ const HomePage = () => {
     const [loadingProfile, setLoadingProfile] = useState(false);
     const [workHistory, setWorkHistory] = useState([]);
     const [updating, setUpdating] = useState(false);
+    const [noticeReload, setNoticeReload] = useState(0);
     
     const router = useIonRouter();
     const { user } = useAppSelector(state => state.user);
@@ -35,6 +37,10 @@ const HomePage = () => {
     const { showOneSignalPrompt, pushNotificationAvailable } = useAppSelector(state => state.app);
 
     const dispatch = useAppDispatch();
+
+    useIonViewWillEnter(() => {
+        setNoticeReload((value) => value + 1);
+    });
 
     useEffect(() => {
         if (!user) {
@@ -212,6 +218,7 @@ const HomePage = () => {
                 <div>
                     {/* Student Account Status */}
                     <AccountStatus />
+                    <UpdateRequestNotices reloadToken={noticeReload} />
 
                     { user && !user.isProfileCompleted && <Card className="p-0 mb-4">
                             <CardHeader>
