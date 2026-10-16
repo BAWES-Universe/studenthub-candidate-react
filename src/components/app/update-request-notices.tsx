@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { listNotifications } from '@/providers/logged-in/candidate-notification.service';
-import { visibleDocumentReminders } from '@/providers/logged-in/update-request-notices';
+import { loadDocumentReminders } from '@/providers/logged-in/update-request-notices';
 
 export function UpdateRequestNotices({ reloadToken = 0 }: { reloadToken?: number }) {
     const { t } = useTranslation();
@@ -13,11 +13,11 @@ export function UpdateRequestNotices({ reloadToken = 0 }: { reloadToken?: number
     useEffect(() => {
         let active = true;
 
-        listNotifications(1, '&is_new=1&types=12,13&per-page=20').then((response) => {
+        loadDocumentReminders(listNotifications).then((reminders) => {
             if (!active) {
                 return;
             }
-            setNotices(visibleDocumentReminders(response?.data));
+            setNotices(reminders);
         }).catch(() => {
             if (active) {
                 setNotices({ photo: false, civil: false });

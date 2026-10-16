@@ -3,12 +3,29 @@ export type ActivityNotice = {
     is_new?: boolean;
 };
 
+export const PHOTO_REMINDER_QUERY = '&is_new=1&types=12&per-page=1';
+export const CIVIL_REMINDER_QUERY = '&is_new=1&types=13&per-page=1';
+
 export function visibleDocumentReminders(notifications: ActivityNotice[] | null | undefined) {
     const list = Array.isArray(notifications) ? notifications : [];
 
     return {
         photo: list.some((notification) => notification.type === 12 && notification.is_new === true),
         civil: list.some((notification) => notification.type === 13 && notification.is_new === true),
+    };
+}
+
+type NoticeList = (page: number, urlParams?: string) => Promise<{ data?: ActivityNotice[] | null } | null | undefined>;
+
+export async function loadDocumentReminders(list: NoticeList) {
+    const [photoResult, civilResult] = await Promise.all([
+        list(1, PHOTO_REMINDER_QUERY),
+        list(1, CIVIL_REMINDER_QUERY),
+    ]);
+
+    return {
+        photo: visibleDocumentReminders(photoResult?.data).photo,
+        civil: visibleDocumentReminders(civilResult?.data).civil,
     };
 }
 
