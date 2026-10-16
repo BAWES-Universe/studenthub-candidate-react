@@ -42,12 +42,35 @@ describe('document notification reminders', () => {
         expect(visibleDocumentReminders(civilHeavy.slice(0, 20))).toEqual({ photo: false, civil: true });
     });
 
+    it('keeps the successful reminder when the other request fails', async () => {
+        await expect(loadDocumentReminders(partialList('photo'))).resolves.toEqual({ photo: true, civil: false });
+        await expect(loadDocumentReminders(partialList('civil'))).resolves.toEqual({ photo: false, civil: true });
+    });
+
     it('keeps an Activity link after the reminder is read', () => {
         expect(activityActionHref(12)).toBe('/personal-photo?fromProfile=1');
         expect(activityActionHref(13)).toBe('/civil-id?fromProfile=1');
         expect(activityActionHref(14)).toBeNull();
     });
 });
+
+function partialList(successful: 'photo' | 'civil') {
+    return async (_page: number, urlParams = '') => {
+        if (urlParams === PHOTO_REMINDER_QUERY) {
+            if (successful !== 'photo') {
+                throw new Error('photo request failed');
+            }
+            return { data: [{ type: 12, is_new: true }] };
+        }
+        if (urlParams === CIVIL_REMINDER_QUERY) {
+            if (successful !== 'civil') {
+                throw new Error('civil request failed');
+            }
+            return { data: [{ type: 13, is_new: true }] };
+        }
+        throw new Error('combined reminder query');
+    };
+}
 
 function filteredList(rows: { type: number; is_new: boolean }[]) {
     return async (_page: number, urlParams = '') => {

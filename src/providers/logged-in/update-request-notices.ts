@@ -18,14 +18,14 @@ export function visibleDocumentReminders(notifications: ActivityNotice[] | null 
 type NoticeList = (page: number, urlParams?: string) => Promise<{ data?: ActivityNotice[] | null } | null | undefined>;
 
 export async function loadDocumentReminders(list: NoticeList) {
-    const [photoResult, civilResult] = await Promise.all([
+    const [photoResult, civilResult] = await Promise.allSettled([
         list(1, PHOTO_REMINDER_QUERY),
         list(1, CIVIL_REMINDER_QUERY),
     ]);
 
     return {
-        photo: visibleDocumentReminders(photoResult?.data).photo,
-        civil: visibleDocumentReminders(civilResult?.data).civil,
+        photo: photoResult.status === 'fulfilled' && visibleDocumentReminders(photoResult.value?.data).photo,
+        civil: civilResult.status === 'fulfilled' && visibleDocumentReminders(civilResult.value?.data).civil,
     };
 }
 
