@@ -80,7 +80,7 @@ export async function updateSkills(params: any): Promise<any> {
  */
 export async function removeCivilPhotoFront(): Promise<any> {
   const url = `${_accountEndpoint}` + '/remove-civil-photo-front';
-  const response = await axios.delete(url);
+  const response = await axios.delete(url, { suppressGlobalErrorHandler: true } as any);
   return response.data;
 }
 
@@ -89,7 +89,7 @@ export async function removeCivilPhotoFront(): Promise<any> {
  */
 export async function   removeCivilPhotoBack(): Promise<any> {
   const url = `${_accountEndpoint}` + '/remove-civil-photo-back';
-  const response = await axios.delete(url);
+  const response = await axios.delete(url, { suppressGlobalErrorHandler: true } as any);
   return response.data;
 }
 
