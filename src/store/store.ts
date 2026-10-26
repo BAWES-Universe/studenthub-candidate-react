@@ -38,7 +38,9 @@ export const store = configureStore<StoreState>({
 });
 
 // Save to local storage
-store.subscribe(async () => {
+let hasWarnedPersistFailure = false;
+
+store.subscribe(() => {
    
   const state = {
     ...store.getState(),
@@ -49,7 +51,16 @@ store.subscribe(async () => {
     }
   };
 
-  localStorage.setItem('state', JSON.stringify(state));
+  try {
+    localStorage.setItem('state', JSON.stringify(state));
+  } catch (err) {
+    // Storage can be unavailable (e.g. Safari with cookies/site data blocked
+    // throws SecurityError). Persisting is best-effort, matching loadState.
+    if (!hasWarnedPersistFailure) {
+      hasWarnedPersistFailure = true;
+      console.warn('Unable to persist state to localStorage', err);
+    }
+  }
   
   /*await storage.set('state',   
       JSON.stringify(state)
