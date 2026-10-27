@@ -48,26 +48,29 @@ export async function handleAxiosError(err: any) {
     console.log("axios error:", err);
 
     const response = err.response;
+    const localErrorHandler = Boolean(err.config?.localErrorHandler);
     //const errMsg = response.status ? `${response.status} - ${response.statusText}` : 'Server error';
 
     if (!response) {
-        internetOffline$.next({});
+        if (!localErrorHandler) {
+            internetOffline$.next({});
+        }
         return Promise.reject(err);
     }
 
     // Handle Bad Requests
-    if (response.status === 400) {
+    if (response.status === 400 && !localErrorHandler) {
         error404$.next({});
      //   Router.push('/404');   
     }
 
     // Handle No Internet Connection Error
-    if (response.status == 0 || response.status == 504) {
+    if ((response.status == 0 || response.status == 504) && !localErrorHandler) {
         internetOffline$.next({});
     //    Router.push('/no-internet');  
     }
     
-    if(!navigator.onLine) {
+    if(!navigator.onLine && !localErrorHandler) {
         internetOffline$.next({});
     //    Router.push('/no-internet');  
     }
@@ -81,14 +84,14 @@ export async function handleAxiosError(err: any) {
     }
 
     // Handle internal server error - 500  
-    if (response.status === 500) {
+    if (response.status === 500 && !localErrorHandler) {
         console.error(JSON.stringify(response));
         error500$.next({});
     //    Router.push('/500');   
     }
 
     // Handle page not found - 404 error 
-    if (response.status === 404) {
+    if (response.status === 404 && !localErrorHandler) {
         error404$.next({});
     //    Router.push('/404');   
     }
