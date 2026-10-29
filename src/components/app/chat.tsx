@@ -1,6 +1,7 @@
 import { Chat } from "@/models/chat";
 import { useTranslation } from "react-i18next";
 import { useTimeAgo } from "@/utils/app";
+import { resolvedStoredImageUrl } from "@/utils/stored-image-url";
 
 export function ChatComponent( { chat, onClick, onLogoError }: { chat: Chat, onClick: () => void, onLogoError: (chat: Chat) => void }) {
 
@@ -12,7 +13,7 @@ export function ChatComponent( { chat, onClick, onLogoError }: { chat: Chat, onC
         <div className="bg-white shadow-md rounded-lg p-4 mb-2 cursor-pointer relative" onClick={onClick}>
             <div className="flex items-center">
                 <div className="w-12 h-12 mr-4">
-                    <img src={chat.company?.company_logo_url || (chat.company?.company_logo ? import.meta.env.VITE_CLOUDINARY_URL + chat.company.company_logo : 'assets/images/building.svg')} 
+                    <img src={resolvedStoredImageUrl(chat.company?.company_logo_url, chat.company?.company_logo, import.meta.env.VITE_CLOUDINARY_URL) || 'assets/images/building.svg'} 
                         alt="Logo" className="w-full h-full rounded-full" onError={() => onLogoError(chat)} />
                 </div>
                 <div className="flex-1">

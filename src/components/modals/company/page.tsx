@@ -12,6 +12,7 @@ interface CompanyPageProps {
 }
 
 import { langContent } from '@/utils/common';
+import { resolvedStoredImageUrl } from '@/utils/stored-image-url';
 
 import { page, track } from '@/providers/analytics.service';
 import { X } from 'lucide-react';
@@ -59,7 +60,7 @@ const CompanyPage = ({ company, dismiss }:CompanyPageProps) => {
           {company.company_logo && (
             <div className="flex items-center">
               <img
-                src={company.company_logo_url || `${import.meta.env.VITE_CLOUDINARY_URL}${company.company_logo}`}
+                src={resolvedStoredImageUrl(company.company_logo_url, company.company_logo, import.meta.env.VITE_CLOUDINARY_URL) || ''}
                 onError={setNull}
                 alt="Company Logo"
                 className="rounded-full"
