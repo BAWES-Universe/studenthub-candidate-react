@@ -8,8 +8,9 @@ import { useTranslation } from "react-i18next";
 
 export function Assignment({ history }: { history: CandidateWorkHistory }) {
     const { t } = useTranslation();
-    const [logoFailed, setLogoFailed] = useState(false);
+    const [failedSrc, setFailedSrc] = useState<string | null>(null);
     const logoSrc = resolvedStoredImageUrl(history.company?.company_logo_url, history.company?.company_logo, import.meta.env.VITE_CLOUDINARY_URL);
+    const logoFailed = !!logoSrc && failedSrc === logoSrc;
     const router = useHistory();
 
     useEffect(() => {
@@ -24,7 +25,7 @@ export function Assignment({ history }: { history: CandidateWorkHistory }) {
                         <div className="w-12 h-12 start-0 top-0 absolute bg-[#f4f6ff] rounded-xl"></div>
                         <img className="w-8 h-8 start-[8px] top-[8px] absolute rounded-[44px]" 
                             src={logoSrc}
-                            onError={() => setLogoFailed(true)} /> 
+                            onError={() => setFailedSrc(logoSrc)} /> 
                     </div> }
 
                     <div className="grow shrink basis-0 flex-col justify-start items-start gap-1 inline-flex">

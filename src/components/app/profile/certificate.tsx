@@ -9,8 +9,9 @@ import { useTranslation } from "react-i18next";
 export function CertificateComponent({ certificate }: { certificate: Certificate }) {
 
     const [isSelected, setIsSelected] = useState(false);
-    const [logoFailed, setLogoFailed] = useState(false);
+    const [failedSrc, setFailedSrc] = useState<string | null>(null);
     const logoSrc = resolvedStoredImageUrl(certificate.company?.company_logo_url, certificate.company?.company_logo, import.meta.env.VITE_CLOUDINARY_URL);
+    const logoFailed = !!logoSrc && failedSrc === logoSrc;
     const [downloading, setDownloading] = useState(false);
 
     const { t } = useTranslation();
@@ -39,7 +40,7 @@ export function CertificateComponent({ certificate }: { certificate: Certificate
                         <div className="w-12 h-12 start-0 top-0 absolute bg-[#f4f6ff] rounded-xl"></div>
                         <img className="w-8 h-8 start-[8px] top-[8px] absolute rounded-[44px]" 
                             src={logoSrc}
-                            onError={() => setLogoFailed(true)} /> 
+                            onError={() => setFailedSrc(logoSrc)} /> 
                     </div> }
 
                     { certificate.company && <div className="grow shrink basis-0 flex-col justify-start items-start gap-1 inline-flex">
