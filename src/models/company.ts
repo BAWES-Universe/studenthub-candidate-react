@@ -13,6 +13,7 @@ export class Company{
     company_website?: string;
     company_email?: string;
     company_logo?: string | null;
+    company_logo_url?: string | null;
     company_status?: number;
     total_candidates?: number;
     country_id?: number;

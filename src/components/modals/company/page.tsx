@@ -59,7 +59,7 @@ const CompanyPage = ({ company, dismiss }:CompanyPageProps) => {
           {company.company_logo && (
             <div className="flex items-center">
               <img
-                src={`${import.meta.env.VITE_CLOUDINARY_URL}${company.company_logo}`}
+                src={company.company_logo_url || `${import.meta.env.VITE_CLOUDINARY_URL}${company.company_logo}`}
                 onError={setNull}
                 alt="Company Logo"
                 className="rounded-full"

@@ -35,7 +35,7 @@ export function CertificateComponent({ certificate }: { certificate: Certificate
                     { certificate.company && certificate.company.company_logo && <div className="w-12 h-12 relative">
                         <div className="w-12 h-12 start-0 top-0 absolute bg-[#f4f6ff] rounded-xl"></div>
                         <img className="w-8 h-8 start-[8px] top-[8px] absolute rounded-[44px]" 
-                            src={import.meta.env.VITE_CLOUDINARY_URL + certificate.company.company_logo }
+                            src={certificate.company.company_logo_url || (import.meta.env.VITE_CLOUDINARY_URL + certificate.company.company_logo)}
                             onError={(e) => { if (certificate.company) {
                                 //certificate.company.company_logo = null
                             }; }} /> 

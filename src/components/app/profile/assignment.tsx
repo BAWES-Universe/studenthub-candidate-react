@@ -20,7 +20,7 @@ export function Assignment({ history }: { history: CandidateWorkHistory }) {
                     { history.company.company_logo && <div className="w-12 h-12 relative">
                         <div className="w-12 h-12 start-0 top-0 absolute bg-[#f4f6ff] rounded-xl"></div>
                         <img className="w-8 h-8 start-[8px] top-[8px] absolute rounded-[44px]" 
-                            src={import.meta.env.VITE_CLOUDINARY_URL + history.company.company_logo }
+                            src={history.company.company_logo_url || (import.meta.env.VITE_CLOUDINARY_URL + history.company.company_logo)}
                             onError={(e) => { history.company.company_logo = null; }} /> 
                     </div> }
 
