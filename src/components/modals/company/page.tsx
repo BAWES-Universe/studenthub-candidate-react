@@ -1,7 +1,7 @@
 
 // app/(dash)/company/page.tsx
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next'; // Assuming you have a translation hook
 import { Company } from '@/models/company'; // Adjust the import path as necessary
 
@@ -12,6 +12,7 @@ interface CompanyPageProps {
 }
 
 import { langContent } from '@/utils/common';
+import { resolvedStoredImageUrl } from '@/utils/stored-image-url';
 
 import { page, track } from '@/providers/analytics.service';
 import { X } from 'lucide-react';
@@ -42,11 +43,9 @@ const CompanyPage = ({ company, dismiss }:CompanyPageProps) => {
     };
   }, []);
  
-  const setNull = () => {
-    if (company) {
-    //  setCompany({ ...company, company_logo: null });
-    }
-  };
+  const logoSrc = resolvedStoredImageUrl(company?.company_logo_url, company?.company_logo, import.meta.env.VITE_CLOUDINARY_URL);
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const showLogo = !!logoSrc && failedSrc !== logoSrc;
 
   return (
     <div className="max-w-screen-lg">
@@ -56,11 +55,11 @@ const CompanyPage = ({ company, dismiss }:CompanyPageProps) => {
             <X className='w-4 h-4'></X>
           </Button>
 
-          {company.company_logo && (
+          {showLogo && (
             <div className="flex items-center">
               <img
-                src={`${import.meta.env.VITE_CLOUDINARY_URL}${company.company_logo}`}
-                onError={setNull}
+                src={logoSrc || ''}
+                onError={() => setFailedSrc(logoSrc)}
                 alt="Company Logo"
                 className="rounded-full"
               />

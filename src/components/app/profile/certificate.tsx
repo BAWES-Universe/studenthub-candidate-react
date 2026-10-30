@@ -3,11 +3,15 @@ import { downloadCertificate } from "@/providers/logged-in/candidate.service";
 import { dateTimeFormat, langContent } from "@/utils/common";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
+import { resolvedStoredImageUrl } from "@/utils/stored-image-url";
 import { useTranslation } from "react-i18next";
 
 export function CertificateComponent({ certificate }: { certificate: Certificate }) {
 
     const [isSelected, setIsSelected] = useState(false);
+    const [failedSrc, setFailedSrc] = useState<string | null>(null);
+    const logoSrc = resolvedStoredImageUrl(certificate.company?.company_logo_url, certificate.company?.company_logo, import.meta.env.VITE_CLOUDINARY_URL);
+    const logoFailed = !!logoSrc && failedSrc === logoSrc;
     const [downloading, setDownloading] = useState(false);
 
     const { t } = useTranslation();
@@ -32,13 +36,11 @@ export function CertificateComponent({ certificate }: { certificate: Certificate
         <div className="w-full bg-white rounded-lg shadow flex-col  gap-2.5 inline-flex  mb-4">
             <div onClick={() => toggleSelection()} className={ `p-4 cursor-pointer self-stretch justify-start items-center gap-3 inline-flex ${isSelected? 'shadow-[0px_-1px_0px_0px_#E2E2E6_inset]': ''}` }>
                 <div className="grow shrink basis-0 h-12 justify-start items-start gap-3 flex">
-                    { certificate.company && certificate.company.company_logo && <div className="w-12 h-12 relative">
+                    { logoSrc && !logoFailed && <div className="w-12 h-12 relative">
                         <div className="w-12 h-12 start-0 top-0 absolute bg-[#f4f6ff] rounded-xl"></div>
                         <img className="w-8 h-8 start-[8px] top-[8px] absolute rounded-[44px]" 
-                            src={import.meta.env.VITE_CLOUDINARY_URL + certificate.company.company_logo }
-                            onError={(e) => { if (certificate.company) {
-                                //certificate.company.company_logo = null
-                            }; }} /> 
+                            src={logoSrc}
+                            onError={() => setFailedSrc(logoSrc)} /> 
                     </div> }
 
                     { certificate.company && <div className="grow shrink basis-0 flex-col justify-start items-start gap-1 inline-flex">
