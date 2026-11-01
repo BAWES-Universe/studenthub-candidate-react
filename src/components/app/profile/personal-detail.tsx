@@ -331,14 +331,14 @@ export function PersonalDdetail()   {
                     <div className="w-full justify-start items-start gap-4 mt-4 cursor-pointer" onClick={updateCivilIdFrontClicked}>
                         <div className="text-[#22223d] text-lg font-semibold mb-4 leading-7">{t('ID Photo Front')}</div>
                         <div className="min-h-[161px] bg-white rounded-2xl">
-                            { user.candidate_civil_photo_back && <img src={ import.meta.env.VITE_PERMANENT_BUCKET_URL + 'photos/' + user.candidate_civil_photo_back } 
+                            { user.candidate_civil_photo_front && <img src={ import.meta.env.VITE_PERMANENT_BUCKET_URL + 'photos/' + user.candidate_civil_photo_front }
                                 className="w-full h-full object-cover rounded-2xl" /> }
                         </div>    
                     </div>
                     <div className="w-full justify-start items-start gap-4 mt-4 cursor-pointer" onClick={updateCivilIdBackClicked}>
                         <div className="text-[#22223d] text-lg font-semibold leading-7 mb-4">{t('ID Photo Back')}</div>
                         <div className="min-h-[161px] bg-white rounded-2xl">
-                            { user.candidate_civil_photo_front && <img src={ import.meta.env.VITE_PERMANENT_BUCKET_URL + 'photos/' + user.candidate_civil_photo_front } 
+                            { user.candidate_civil_photo_back && <img src={ import.meta.env.VITE_PERMANENT_BUCKET_URL + 'photos/' + user.candidate_civil_photo_back }
                                 className="w-full h-full object-cover rounded-2xl" /> }
                         </div>
                     </div>
