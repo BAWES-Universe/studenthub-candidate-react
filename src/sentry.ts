@@ -6,6 +6,7 @@ import {
   redactPresignedUploadSpan,
   redactPresignedUploadTransaction,
 } from "@/providers/logged-in/sentry-presign-redaction";
+import { isGoogleAppInjectedStackOverflow } from "@/providers/sentry-injected-script-filter";
 
 Sentry.init(
   {
@@ -27,6 +28,9 @@ Sentry.init(
         beforeAddRecordingEvent: redactPresignedReplayEvent,
       }),
     ],
+    // Drop only the Google iOS app's own injected-script stack overflow
+    // (SH-STUDENT-APP-58); no first-party code is involved. Everything else is sent.
+    beforeSend: (event) => (isGoogleAppInjectedStackOverflow(event) ? null : event),
     beforeBreadcrumb: (breadcrumb) => redactPresignedUploadBreadcrumb(breadcrumb),
     beforeSendSpan: (span) => redactPresignedUploadSpan(span),
     beforeSendTransaction: (event) => redactPresignedUploadTransaction(event),
