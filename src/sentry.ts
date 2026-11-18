@@ -6,6 +6,7 @@ import {
   redactPresignedUploadSpan,
   redactPresignedUploadTransaction,
 } from "@/providers/logged-in/sentry-presign-redaction";
+import { isInjectedDocumentScriptEvent } from "@/providers/sentry-injected-script-filter";
 
 Sentry.init(
   {
@@ -27,6 +28,8 @@ Sentry.init(
         beforeAddRecordingEvent: redactPresignedReplayEvent,
       }),
     ],
+    // Drop rejections raised solely by browser-injected page scripts (e.g. Chrome iOS translate).
+    beforeSend: (event) => (isInjectedDocumentScriptEvent(event) ? null : event),
     beforeBreadcrumb: (breadcrumb) => redactPresignedUploadBreadcrumb(breadcrumb),
     beforeSendSpan: (span) => redactPresignedUploadSpan(span),
     beforeSendTransaction: (event) => redactPresignedUploadTransaction(event),
